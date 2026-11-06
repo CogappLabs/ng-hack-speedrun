@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art Drive</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px system-ui, sans-serif; color: #ddd; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  #hud { position: fixed; top: 8px; left: 8px; background: #000a; padding: 6px 10px; border-radius: 4px; pointer-events: none; }
+  #tip { position: fixed; background: #000c; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; max-width: 320px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="hudStatus">Loading…</div><div id="hudLocation"></div><div style="opacity:.6">Arrow keys to drive · scroll to zoom · drag to look around</div></div>
+<div id="tip"></div>
+<script>
+const CELL = 256;        // world units per grid cell
+const PAD = 8;           // gap inside each cell so tiles never touch
+const CONCURRENCY = 16;  // parallel image downloads
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hudStatus = document.getElementById('hudStatus');
+const hudLocation = document.getElementById('hudLocation');
+const tip = document.getElementById('tip');
+
+let layout, tiles = [], byCell = new Map();
+let cam = { x: 0, y: 0, zoom: 0.05 };  // world coords at screen centre
+let dirty = true, loaded = 0;
+
+// --- Car -------------------------------------------------------------------
+// Simple arcade model: heading + scalar speed, steering scaled by speed so the
+// car can't spin on the spot. Units are world units (CELL = one grid cell).
+const CAR = {
+  length: 96, width: 52,
+  accel: 900,          // u/s² when holding Up
+  brake: 1800,         // u/s² when holding Down while moving forward
+  reverseMax: 350,     // u/s
+  maxSpeed: 1100,      // u/s (~4 cells/s)
+  drag: 1.2,           // proportional slowdown per second when coasting
+  turnRate: 2.6,       // rad/s at full steering authority
+};
+const car = { x: 0, y: 0, heading: -Math.PI / 2, speed: 0 };  // heading 0 = east, -π/2 = north
+const keys = new Set();
+let follow = true, lastT = performance.now();
+
+addEventListener('keydown', e => {
+  if (e.key.startsWith('Arrow')) { keys.add(e.key); follow = true; e.preventDefault(); }
+});
+addEventListener('keyup', e => keys.delete(e.key));
+addEventListener('blur', () => keys.clear());
+
+function updateCar(dt) {
+  const up = keys.has('ArrowUp'), down = keys.has('ArrowDown');
+  const steer = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+
+  if (up) car.speed += CAR.accel * dt;
+  if (down) car.speed -= (car.speed > 0 ? CAR.brake : CAR.accel) * dt;
+  if (!up && !down) {
+    car.speed -= car.speed * CAR.drag * dt;
+    if (Math.abs(car.speed) < 5) car.speed = 0;
+  }
+  car.speed = Math.max(-CAR.reverseMax, Math.min(CAR.maxSpeed, car.speed));
+
+  // Steering authority ramps up with speed; reversing flips the turn direction like a real car.
+  const authority = Math.min(1, Math.abs(car.speed) / 300) * Math.sign(car.speed);
+  car.heading += steer * CAR.turnRate * authority * dt;
+
+  car.x += Math.cos(car.heading) * car.speed * dt;
+  car.y += Math.sin(car.heading) * car.speed * dt;
+
+  // Keep the car within the grid's bounds.
+  car.x = Math.max(0, Math.min(layout.cols * CELL, car.x));
+  car.y = Math.max(0, Math.min(layout.rows * CELL, car.y));
+}
+
+function drawCar() {
+  const { length: L, width: W } = CAR;
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.heading);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';                       // shadow
+  ctx.fillRect(-L / 2 + 6, -W / 2 + 6, L, W);
+  ctx.fillStyle = '#111';                                    // wheels
+  for (const [wx, wy] of [[-L * 0.3, -W / 2], [L * 0.3, -W / 2], [-L * 0.3, W / 2], [L * 0.3, W / 2]])
+    ctx.fillRect(wx - 11, wy - 5, 22, 10);
+  ctx.fillStyle = '#e63946';                                 // body
+  ctx.beginPath(); ctx.roundRect(-L / 2, -W / 2, L, W, 12); ctx.fill();
+  ctx.fillStyle = '#a8dadc';                                 // windscreen
+  ctx.fillRect(L * 0.08, -W / 2 + 7, L * 0.16, W - 14);
+  ctx.fillStyle = '#ffd166';                                 // headlights
+  ctx.fillRect(L / 2 - 5, -W / 2 + 5, 5, 9);
+  ctx.fillRect(L / 2 - 5, W / 2 - 14, 5, 9);
+  ctx.restore();
+}
+
+const tileAt = (x, y) => byCell.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
+let lastTileId;
+function updateHud() {
+  const t = tileAt(car.x, car.y);
+  if (t?.id === lastTileId) return;
+  lastTileId = t?.id;
+  hudLocation.textContent = t ? `On: ${t.title} (${t.acc})` : 'Off-road — in a gap';
+}
+
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  dirty = true;
+}
+addEventListener('resize', resize);
+
+const screenToWorld = (sx, sy) => ({
+  x: (sx - innerWidth / 2) / cam.zoom + cam.x,
+  y: (sy - innerHeight / 2) / cam.zoom + cam.y,
+});
+
+function draw(now = performance.now()) {
+  requestAnimationFrame(draw);
+  const dt = Math.min(0.05, (now - lastT) / 1000);  // clamp so a background tab doesn't teleport the car
+  lastT = now;
+  if (keys.size || car.speed) {
+    updateCar(dt);
+    updateHud();
+    dirty = true;
+  }
+  if (follow && (cam.x !== car.x || cam.y !== car.y)) { cam.x = car.x; cam.y = car.y; dirty = true; }
+  if (!dirty) return;
+  dirty = false;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, innerWidth, innerHeight);
+  ctx.save();
+  ctx.translate(innerWidth / 2, innerHeight / 2);
+  ctx.scale(cam.zoom, cam.zoom);
+  ctx.translate(-cam.x, -cam.y);
+
+  // Only draw cells inside the viewport.
+  const a = screenToWorld(0, 0), b = screenToWorld(innerWidth, innerHeight);
+  const c0 = Math.max(0, Math.floor(a.x / CELL)), c1 = Math.min(layout.cols - 1, Math.floor(b.x / CELL));
+  const r0 = Math.max(0, Math.floor(a.y / CELL)), r1 = Math.min(layout.rows - 1, Math.floor(b.y / CELL));
+  const inner = CELL - PAD * 2;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const t = byCell.get(c + ',' + r);
+    if (!t) continue;
+    const x = c * CELL + PAD, y = r * CELL + PAD;
+    if (t.img) {
+      // Fit the whole artwork inside the square cell, centred (letterboxed).
+      const s = Math.min(inner / t.img.width, inner / t.img.height);
+      const w = t.img.width * s, h = t.img.height * s;
+      ctx.drawImage(t.img, x + (inner - w) / 2, y + (inner - h) / 2, w, h);
+    } else {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x, y, inner, inner);
+    }
+  }
+  drawCar();
+  ctx.restore();
+}
+
+// Download all images with bounded concurrency, nearest-to-camera first.
+async function loadAll() {
+  const queue = [...tiles].sort((p, q) => dist(p) - dist(q));
+  function dist(t) { const dx = t.col * CELL - cam.x, dy = t.row * CELL - cam.y; return dx * dx + dy * dy; }
+  async function worker() {
+    while (queue.length) {
+      const t = queue.shift();
+      const img = new Image();
+      img.crossOrigin = 'anonymous';  // keeps the canvas untainted (server sends CORS headers)
+      img.decoding = 'async';
+      img.src = t.url;
+      try { await img.decode(); t.img = img; } catch { t.failed = true; }
+      loaded++;
+      hudStatus.textContent = `${tiles.length} artworks · ${layout.cols}×${layout.rows} grid · loaded ${loaded}/${tiles.length}`;
+      dirty = true;
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  hudStatus.textContent = `${tiles.length} artworks · ${layout.cols}×${layout.rows} grid`;
+}
+
+// Pan & zoom
+let drag = null;
+canvas.addEventListener('pointerdown', e => { follow = false; drag = { x: e.clientX, y: e.clientY }; canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => { drag = null; canvas.classList.remove('dragging'); });
+canvas.addEventListener('pointermove', e => {
+  if (drag) {
+    cam.x -= (e.clientX - drag.x) / cam.zoom;
+    cam.y -= (e.clientY - drag.y) / cam.zoom;
+    drag = { x: e.clientX, y: e.clientY };
+    dirty = true;
+  }
+  const w = screenToWorld(e.clientX, e.clientY);
+  const t = byCell.get(Math.floor(w.x / CELL) + ',' + Math.floor(w.y / CELL));
+  if (t && !drag) {
+    tip.style.display = 'block';
+    tip.style.left = e.clientX + 14 + 'px';
+    tip.style.top = e.clientY + 14 + 'px';
+    tip.textContent = `${t.title} (${t.acc})`;
+  } else tip.style.display = 'none';
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const before = screenToWorld(e.clientX, e.clientY);
+  cam.zoom = Math.min(4, Math.max(0.01, cam.zoom * Math.exp(-e.deltaY * 0.0015)));
+  const after = screenToWorld(e.clientX, e.clientY);
+  cam.x += before.x - after.x;
+  cam.y += before.y - after.y;
+  dirty = true;
+}, { passive: false });
+
+(async () => {
+  layout = await (await fetch('layout.json')).json();
+  tiles = layout.tiles;
+  for (const t of tiles) byCell.set(t.col + ',' + t.row, t);
+  resize();
+  // Start the car on the tile nearest the centroid of all tiles.
+  const mc = tiles.reduce((s, t) => s + t.col, 0) / tiles.length;
+  const mr = tiles.reduce((s, t) => s + t.row, 0) / tiles.length;
+  const start = tiles.reduce((best, t) =>
+    (t.col - mc) ** 2 + (t.row - mr) ** 2 < (best.col - mc) ** 2 + (best.row - mr) ** 2 ? t : best);
+  car.x = cam.x = (start.col + 0.5) * CELL;
+  car.y = cam.y = (start.row + 0.5) * CELL;
+  cam.zoom = 0.6;
+  updateHud();
+  draw();
+  loadAll();
+})();
+</script>
+</body>
+</html>
