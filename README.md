@@ -1,8 +1,8 @@
 # ng-hack-speedrun
 Dash to gather artworks. Created for the National Gallery Hack Day November 2026
 
-A web game where you drive a car across a 2D landscape made of National Gallery
-artworks. Paintings that look similar sit next to each other, so you drive
+A web game where you drive a car across a 3D landscape made of National Gallery
+artworks, laid flat like floor tiles. Paintings that look similar sit next to each other, so you drive
 between neighbouring works and (soon) jump across the gaps between groups.
 
 ## Quick start
@@ -19,6 +19,16 @@ cd public && python3 -m http.server 8765
 
 Open http://localhost:8765/.
 
+## Deployment
+
+Every push to `main` publishes `public/` to GitHub Pages, using
+`.github/workflows/pages.yml`. Commit `public/layout.json` after rebuilding it,
+because the workflow doesn't run the build script. You can also run the
+workflow by hand from the Actions tab.
+
+One-time setup: in the repository's **Settings → Pages**, set **Source** to
+**GitHub Actions**.
+
 ## Controls
 
 | Input | Action |
@@ -26,8 +36,9 @@ Open http://localhost:8765/.
 | ↑ | Accelerate |
 | ↓ | Brake, then reverse |
 | ← / → | Steer (only works while moving) |
-| Scroll wheel | Zoom |
-| Drag | Look around (press any arrow key to return to the car) |
+| Scroll wheel | Move the camera closer to or further from the car |
+| Drag | Swing the camera around the car (press any arrow key to swing it back) |
+| Hover | Show the artwork's title |
 
 The HUD shows the artwork under the car, or "Off-road" when you're in a gap.
 
@@ -75,16 +86,23 @@ them automatically into a temporary environment.
 
 ### Game (`public/index.html`)
 
-A single page using a 2D canvas, with no build step and no libraries.
+A single page using [Three.js](https://threejs.org/) (0.170.0, loaded from jsDelivr
+through an import map). There is no build step.
 
-- **Tiles**: each cell is 256 world units. The whole artwork is fitted inside the
-  cell, centred, with a small gap around it. Only tiles on screen are drawn.
-- **Image loading**: all images are fetched from `data.ng.ac.uk`, 16 at a time,
-  nearest to the camera first. They load with `crossOrigin="anonymous"` (the
-  server allows cross-site use) so the images can also be used for WebGL later.
-- **Car**: simple arcade handling (heading + speed, steering scaled by speed). All
-  the handling numbers are in the `CAR` settings block. The car starts on the tile
-  nearest the centre of all tiles, and the camera follows it.
+- **World**: the game logic still runs on a flat 2D plane (x, y). Three.js draws it
+  as the ground plane, so world (x, y) is 3D (x, 0, y). Each cell is 256 world units.
+- **Tiles**: one flat quad per artwork. The whole artwork is fitted inside its cell,
+  centred, with a small gap around it. Gaps show a dark ground with faint grid lines.
+- **Textures**: all images are fetched from `data.ng.ac.uk`, 16 at a time, nearest
+  to the car first. Only tiles within `TEX_RADIUS` cells of the car get a GPU
+  texture (resized to 512px at most), and textures beyond `TEX_KEEP` are freed.
+  Uploading all 2,400 at once would use too much GPU memory. Fog hides the edge.
+- **Car**: a simple box model with turning front wheels and a slight lean in corners.
+  The handling is unchanged: arcade style (heading + speed, steering scaled by
+  speed). All the handling numbers are in the `CAR` settings block. The car
+  starts on the tile nearest the centre of all tiles.
+- **Camera**: a chase camera sits behind and above the car and swings round after
+  it with a short delay. The settings are in the `chase` block.
 
 ## Next steps
 
