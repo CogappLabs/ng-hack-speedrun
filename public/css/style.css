@@ -1,0 +1,41 @@
+/* Shared styles. Each screen has its own section below; keep screen-specific rules there. */
+:root {
+  --sky: #1b1f27;
+  --panel: #000b;
+  --text: #ddd;
+  --muted: #9aa0aa;
+  --accent: #e63946;
+}
+html, body { margin: 0; height: 100%; background: var(--sky); overflow: hidden; font: 13px system-ui, sans-serif; color: var(--text); }
+#scene { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; cursor: grab; }
+#scene.dragging { cursor: grabbing; }
+
+/* Screens sit over the canvas. The overlay lets clicks through to the canvas; panels catch them. */
+#screen { position: fixed; inset: 0; pointer-events: none; }
+.panel { pointer-events: auto; background: var(--panel); border-radius: 8px; padding: 16px 20px; }
+.centre { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); box-sizing: border-box; text-align: center; }
+.muted { color: var(--muted); }
+button { font: inherit; padding: 8px 16px; border: 0; border-radius: 6px; background: #333a46; color: var(--text); cursor: pointer; }
+button:hover { background: #434b5a; }
+button.primary { background: var(--accent); color: #fff; }
+input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid #444; background: #111; color: var(--text); }
+.row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+
+/* --- Landing (js/screens/landing.js) --- */
+.landing h1 { margin: 0 0 4px; font-size: 32px; }
+
+/* --- Lobby (js/screens/lobby.js) --- */
+.lobby ul { list-style: none; padding: 0; margin: 8px 0; }
+.lobby .code { font: 600 24px ui-monospace, monospace; letter-spacing: 4px; }
+
+/* --- Play (js/screens/play.js) --- */
+.hud { position: absolute; top: 8px; left: 8px; padding: 6px 10px; border-radius: 4px; pointer-events: none; }
+.hud button { pointer-events: auto; margin-top: 6px; padding: 4px 10px; }
+.tip { position: fixed; background: #000c; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; max-width: 320px; }
+
+/* --- Finish (js/screens/finish.js) --- */
+.finish { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.finish .works { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; text-align: left; }
+.finish figure { margin: 0; }
+.finish img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; }
+.finish figcaption { font-size: 12px; margin-top: 4px; }

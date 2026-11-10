@@ -39,6 +39,8 @@ One-time setup: in the repository's **Settings → Pages**, set **Source** to
 | Scroll wheel | Move the camera closer to or further from the car |
 | Drag | Swing the camera around the car (press any arrow key to swing it back) |
 | Hover | Show the artwork's title |
+| Space | Select the artwork under the car (placeholder mechanic) |
+| Esc | Finish the run and see your selections |
 
 The HUD shows the artwork under the car, or "Off-road" when you're in a gap.
 
@@ -84,10 +86,11 @@ uv run scripts/build_layout.py [input.tsv] [output.json]
 The script lists its dependencies (numpy, scipy) inline, so `uv run` installs
 them automatically into a temporary environment.
 
-### Game (`public/index.html`)
+### Game (`public/`)
 
-A single page using [Three.js](https://threejs.org/) (0.170.0, loaded from jsDelivr
-through an import map). There is no build step.
+Plain ES modules using [Three.js](https://threejs.org/) (0.170.0, loaded from jsDelivr
+through an import map). There is no build step. `CLAUDE.md` describes the file layout,
+the screens (landing, lobby, play, finish) and the interfaces between them.
 
 - **World**: the game logic still runs on a flat 2D plane (x, y). Three.js draws it
   as the ground plane, so world (x, y) is 3D (x, 0, y). Each cell is 256 world units.
@@ -101,8 +104,9 @@ through an import map). There is no build step.
   The handling is unchanged: arcade style (heading + speed, steering scaled by
   speed). All the handling numbers are in the `CAR` settings block. The car
   starts on the tile nearest the centre of all tiles.
+  Handling is in `js/game/car.js`.
 - **Camera**: a chase camera sits behind and above the car and swings round after
-  it with a short delay. The settings are in the `chase` block.
+  it with a short delay. The settings are in the `chase` block in `js/game/camera.js`.
 
 ## Next steps
 
