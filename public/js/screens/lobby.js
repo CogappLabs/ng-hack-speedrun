@@ -3,6 +3,7 @@
 // Uses the Net interface (../net/net.js), implemented over PartyServer in ../net/partykit.js.
 import { createPartyNet, watchRooms } from '../net/partykit.js';
 import { cssColor, selfPlayer } from '../net/net.js';
+import { optionsLabel, cleanOptions } from '../options.js';
 import { render, esc } from '../ui.js';
 
 const NAME_KEY = 'artdrive.name';
@@ -23,6 +24,7 @@ export default {
           <h3>Open rooms</h3>
           <ul class="rooms"><li class="muted">Connecting…</li></ul>
           <h3>Or start your own</h3>
+          <p class="muted create-options"></p>
           <div class="row">
             <input class="title" maxlength="30" autocomplete="off">
             <button class="primary create">Create room</button>
@@ -30,6 +32,7 @@ export default {
         </div>
         <div class="room" hidden>
           <h3 class="room-title"></h3>
+          <p class="muted room-options"></p>
           <ul class="players"></ul>
           <div class="row"><button class="primary start" hidden>Start game</button></div>
           <p class="muted waiting" hidden>Waiting for the host to start…</p>
@@ -41,6 +44,7 @@ export default {
     const name = () => $('.name').value.trim() || 'Player';
     const titlePlaceholder = () => { $('.title').placeholder = `${name()}’s room`; };
     titlePlaceholder();
+    $('.create-options').textContent = `${optionsLabel(ctx.options)} (change it on the first screen)`;
     $('.name').oninput = titlePlaceholder;
 
     const busy = on => $('.choose').querySelectorAll('button').forEach(b => { b.disabled = on; });
@@ -52,6 +56,7 @@ export default {
       $('.choose').hidden = true;
       $('.room').hidden = false;
       $('.room-title').textContent = room.title;
+      $('.room-options').textContent = optionsLabel(cleanOptions(room.options));
     };
     const start = promise => {
       saveName(name());
@@ -76,7 +81,7 @@ export default {
         return `
           <li><button class="room-btn" data-id="${esc(r.id)}"${full ? ' disabled' : ''}>
             <strong>${esc(r.title)}</strong>
-            <span class="muted">${esc(r.host)} · ${r.players}/${r.max} players${full ? ' · full' : ''}</span>
+            <span class="muted">${esc(r.host)} · ${r.players}/${r.max} players · ${esc(optionsLabel(cleanOptions(r.options)))}${full ? ' · full' : ''}</span>
           </button></li>`;
       }).join('');
       list.querySelectorAll('.room-btn').forEach(b => {
@@ -84,7 +89,7 @@ export default {
       });
     });
 
-    $('.create').onclick = () => start(net.createRoom(name(), $('.title').value.trim()));
+    $('.create').onclick = () => start(net.createRoom(name(), $('.title').value.trim(), ctx.options));
     $('.title').onkeydown = e => { if (e.key === 'Enter') $('.create').click(); };
     $('.start').onclick = () => net.startGame();
     $('.back').onclick = () => { net.leave(); ctx.session = { mode: 'single', net: null }; ctx.go('landing'); };
@@ -97,7 +102,7 @@ export default {
         $('.start').hidden = !host;
         $('.waiting').hidden = host;
       }),
-      net.on('start', ({ seed }) => { ctx.newRun(selfPlayer(net)?.slot ?? 0, seed); ctx.go('play'); }),
+      net.on('start', ({ seed, options }) => { ctx.newRun(selfPlayer(net)?.slot ?? 0, seed, options); ctx.go('play'); }),
       net.on('error', msg => fail(msg)),
     ];
   },

@@ -2,15 +2,17 @@
 // /party/server.ts for the server). Two kinds of connection:
 //
 // Game room (/parties/game-room/<room id>), one per game:
-//   Client → server: { type: 'join', name, create, title? } · { type: 'start' }
+//   Client → server: { type: 'join', name, create, title?, options? } · { type: 'start' }
 //                    { type: 'state', x, y, heading, speed, steer } · { type: 'select', tileId }
-//   Server → client: { type: 'joined', selfId, room: { id, title } } · { type: 'players', players }
-//                    { type: 'start', seed } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
-//                    { type: 'end', id }
+//   Server → client: { type: 'joined', selfId, room: { id, title, options } } · { type: 'players', players }
+//                    { type: 'start', seed, options } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
+//                    { type: 'end', id, reason }   reason: 'full' | 'time' | 'all-full'
 //                    { type: 'error', message }
 //
 // Room directory (/parties/room-directory/all), listen only:
-//   Server → client: { type: 'rooms', rooms: [{ id, title, host, players, max }] }
+//   Server → client: { type: 'rooms', rooms: [{ id, title, host, players, max, options }] }
+//
+// options is the room's GameOptions ({ mode, minutes }, see ../options.js), set by its creator.
 import PartySocket from 'partysocket';
 import { PARTY_HOST } from '../config.js';
 import { createEmitter, PLAYER_COLORS } from './net.js';
@@ -26,7 +28,7 @@ export function createPartyNet() {
 
   const send = msg => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg)); };
 
-  function connect(roomId, name, create, title) {
+  function connect(roomId, name, create, title, options) {
     if (!PARTY_HOST) return Promise.reject(new Error(NO_SERVER));
     net.leave();
     return new Promise((resolve, reject) => {
@@ -35,7 +37,7 @@ export function createPartyNet() {
       let joined = false;
       const close = () => { if (socket === s) socket = null; s.close(); };
 
-      s.addEventListener('open', () => s.send(JSON.stringify({ type: 'join', name, create, title })));
+      s.addEventListener('open', () => s.send(JSON.stringify({ type: 'join', name, create, title, options })));
       s.addEventListener('close', () => {
         if (socket !== s) return;  // we closed it on purpose
         socket = null;
@@ -62,7 +64,7 @@ export function createPartyNet() {
             break;
           case 'start':
             net.seed = m.seed;
-            emit('start', { seed: m.seed });
+            emit('start', { seed: m.seed, options: m.options });
             break;
           case 'state': {
             const { type, ...state } = m;
@@ -73,7 +75,7 @@ export function createPartyNet() {
             emit('selected', { id: m.id, tileId: m.tileId });
             break;
           case 'end':
-            emit('end', { id: m.id });
+            emit('end', { id: m.id, reason: m.reason ?? 'full' });
             break;
         }
       });
@@ -86,7 +88,7 @@ export function createPartyNet() {
     seed: null,
     players: [],
     on,
-    createRoom: (name, title) => connect(newRoomId(), name, true, title),
+    createRoom: (name, title, options) => connect(newRoomId(), name, true, title, options),
     joinRoom: (roomId, name) => connect(roomId, name, false),
     startGame: () => send({ type: 'start' }),
     sendState: ({ x, y, heading, speed, steer }) => send({

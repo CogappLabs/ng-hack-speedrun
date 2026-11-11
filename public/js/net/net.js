@@ -7,15 +7,16 @@
 // @typedef {{ id: string, x: number, y: number, heading: number, speed: number, steer: number }} CarState
 //
 // @typedef {Object} Net
-// @typedef {{ id: string, title: string, host: string, players: number, max: number }} RoomInfo
+// @typedef {{ id: string, title: string, host: string, players: number, max: number, options: GameOptions }} RoomInfo
 //   a room that can still be joined, as listed by watchRooms() in ./partykit.js
+//   (GameOptions: { mode, minutes }, see ../options.js; the room creator's choice)
 //
 // @property {string|null} selfId                                      this player's id, once joined
-// @property {{ id: string, title: string }|null} room                 the room we're in, once joined
+// @property {{ id: string, title: string, options: GameOptions }|null} room   the room we're in, once joined
 // @property {Player[]} players                                        the latest player list
 // @property {number|null} seed                                       random seed for starting positions, set on 'start'
-// @property {(name: string, title?: string) => Promise<{id, title}>} createRoom   caller becomes host
-// @property {(roomId: string, name: string) => Promise<{id, title}>} joinRoom      roomId from RoomInfo.id
+// @property {(name: string, title?: string, options?: GameOptions) => Promise<{id, title, options}>} createRoom   caller becomes host
+// @property {(roomId: string, name: string) => Promise<{id, title, options}>} joinRoom      roomId from RoomInfo.id
 // @property {() => void} startGame                                    host only; every player then gets 'start'
 // @property {(state: Omit<CarState, 'id'>) => void} sendState         local car pose, ~15 times a second
 // @property {(tileId: string) => void} selectTile                     ask to collect an artwork; wait for 'selected'
@@ -24,12 +25,14 @@
 //
 // Events:
 //   'players'  (players: Player[])      the room's player list changed (join, leave, new host)
-//   'start'    ({ seed })                the host started the game; pass seed to ctx.newRun()
+//   'start'    ({ seed, options })       the host started the game; pass seed and options to ctx.newRun()
 //   'state'    (state: CarState)         another player's car moved
 //   'selected' ({ id, tileId })         a player (possibly us) photographed an artwork. The server only
 //                                        confirms the first claim on each tile, so this is the moment
 //                                        to add it to the inventory (if id is ours) and remove it from the map
-//   'end'      ({ id })                  player `id` filled their film, so the game is over for everyone
+//   'end'      ({ id, reason })          the game is over for everyone. reason 'full': player `id` filled
+//                                        their film first (challenge mode); 'time': the clock ran out;
+//                                        'all-full': everyone's film is full (time mode). id is null unless 'full'
 //   'error'    (message: string)         e.g. lost connection to the server
 
 // One colour per player slot: hues spread evenly round the colour wheel, starting at the

@@ -35,6 +35,7 @@ public/
   js/scene.js            the one renderer / scene / camera
   js/ui.js               DOM helpers (render, esc)
   js/inventory.js        the local player's photographed artworks (at most COLLECTION_SIZE)
+  js/options.js          game options ({ mode: 'time' | 'challenge', minutes }), saved in localStorage
   js/net/net.js          multiplayer Net interface, player colours, emitter
   js/net/partykit.js     Net implementation over partysocket (client side of party/server.ts)
   js/game/world.js       layout, tiles, image loading, textures
@@ -65,8 +66,10 @@ Change these only on purpose, and say so in the commit message, because other se
 - `ctx.session`: `{ mode: 'single' | 'multi', net: Net | null }`
 - `ctx.inventory`: see below
 - `ctx.challenge`: this run's `{ label, name, tiles }`, e.g. `{ label: 'hat', name: 'hats' }`
-- `ctx.newRun(slot = 0, seed = random)`: put photographed artworks back on the map, pick the
-  challenge, put the car on its random starting tile and empty the inventory. In multiplayer pass `Player.slot` and the seed from the `start` event, so all
+- `ctx.options`: the player's chosen `{ mode, minutes }` (landing screen; also used for rooms they create)
+- `ctx.runOptions`: this run's `{ mode, minutes }` (ctx.options, or the room's in multiplayer)
+- `ctx.newRun(slot = 0, seed = random, options = ctx.options)`: put photographed artworks back on the map, pick the
+  challenge, set `ctx.runOptions`, put the car on its random starting tile and empty the inventory. In multiplayer pass `Player.slot`, and the seed and options from the `start` event, so all
   players agree where everyone starts (`spawnPoint(seed, slot)` in `js/game/world.js`).
 
 **Inventory** (`js/inventory.js`): `add(tile)` (false if already there or full), `remove(id)`,
@@ -74,9 +77,12 @@ Change these only on purpose, and say so in the commit message, because other se
 `{ id, acc, title, url, pickedAt }`. The cap is `COLLECTION_SIZE` in `js/config.js` (10), which
 must match `MAX_PICKS` in `party/server.ts`.
 
-**Game rules**: the challenge is "photograph COLLECTION_SIZE examples of `challenge.name`". The
-game ends when anyone has COLLECTION_SIZE photos (single player: you; multiplayer: the server's
-`end` event). A player's score is how many of their photos have `challenge.label` in the tile's
+**Game rules**: two modes (`js/options.js`, mirrored in `party/server.ts`). *Time mode* (the
+default): photograph as many `challenge.name` as you can in `minutes` (1, 2, 3, 5 or 10; default 2);
+the game ends when the clock runs out or every film is full. *Challenge mode*: "photograph
+COLLECTION_SIZE examples of `challenge.name`"; the game ends when anyone has COLLECTION_SIZE
+photos. Single player: the play screen ends it; multiplayer: the server's `end` event (the server
+runs the clock). In multiplayer the room creator's options apply to everyone. A player's score is how many of their photos have `challenge.label` in the tile's
 `labels` (`tileMatches(tile, challenge)` in `js/game/world.js`). Scores are revealed only on
 the finish screen. The UI says "photograph"; code still uses inventory/collect names.
 
@@ -88,17 +94,18 @@ from `input/filtered_subjects.tsv`. `challengeFor(seed)` picks one, so all playe
 when `world.version` changes. In multiplayer, only remove a tile (or add it to the inventory)
 when the server's `selected` event arrives, never on the key press.
 
-**Finish screen data**: `ctx.go('finish', { mode, challenge, endedBy, players })`. `endedBy` is
-the name of whoever filled their film ('You' for us, null if we quit). `players` is
+**Finish screen data**: `ctx.go('finish', { mode, options, challenge, endedBy, reason, players })`.
+`reason` is `'full' | 'time' | 'all-full' | 'quit'`. `endedBy` is the name of whoever filled
+their film first ('You' for us), else null. `players` is
 `[{ name, color, self, score, photos: [{ id, acc, title, url, match }] }]`, including players
 who left mid-game.
 
-**Net** (`js/net/net.js`): `createRoom(name, title?) → {id, title}`, `joinRoom(roomId, name)`,
+**Net** (`js/net/net.js`): `createRoom(name, title?, options?) → {id, title, options}`, `joinRoom(roomId, name)`,
 `startGame()`, `sendState(pose)`, `selectTile(tileId)`, `on(event, fn) → unsubscribe`,
 `leave()`, `selfId`, `room`, `seed`, `players`. The open-rooms list comes from
-`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start` (`{ seed }`), `state`, `selected` (`{ id, tileId }`, sent to
-everyone including the photographer, first claim only), `end` (`{ id }`: that player filled
-their film, game over for everyone), `error`. Full types are
+`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start` (`{ seed, options }`), `state`, `selected` (`{ id, tileId }`, sent to
+everyone including the photographer, first claim only), `end` (`{ id, reason }`: game over for
+everyone; reason `'full'` = player `id` filled their film, `'time'`, or `'all-full'` with id null), `error`. Full types are
 in the file's header comment. The wire messages are listed in `js/net/partykit.js`; keep
 them in step with `party/server.ts`.
 

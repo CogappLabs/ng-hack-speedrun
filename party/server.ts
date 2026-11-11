@@ -17,6 +17,10 @@ const MAX_PICKS = 10;           // photos per player; keep in step with COLLECTI
 const HEARTBEAT_MS = 30_000;    // open rooms re-announce themselves this often...
 const STALE_MS = 75_000;        // ...and the directory drops rooms it hasn't heard from in this long
 const DIRECTORY = "all";        // the single RoomDirectory instance
+// Game options (public/js/options.js), chosen by whoever creates the room. Keep in step.
+const MODES = ["time", "challenge"] as const;
+const MINUTES = [1, 2, 3, 5, 10];
+const DEFAULT_OPTIONS: GameOptions = { mode: "time", minutes: 2 };
 
 type Env = {
   GameRoom: DurableObjectNamespace<GameRoom>;
@@ -25,15 +29,28 @@ type Env = {
 
 type Player = { id: string; name: string; host: boolean; color: number; slot: number };
 
-export type RoomInfo = { id: string; title: string; host: string; players: number; max: number };
+// time: the game ends after `minutes` (or once everyone's film is full).
+// challenge: the game ends when the first player fills their film.
+type GameOptions = { mode: (typeof MODES)[number]; minutes: number };
+
+// Why a game ended: 'full' (player `id` filled their film first, challenge mode or single
+// player), 'time' (the clock ran out) or 'all-full' (time mode, everyone's film is full).
+type EndReason = "full" | "time" | "all-full";
+
+export type RoomInfo = { id: string; title: string; host: string; players: number; max: number; options: GameOptions };
 
 type ClientMessage =
-  | { type: "join"; name: string; create: boolean; title?: string }
+  | { type: "join"; name: string; create: boolean; title?: string; options?: Partial<GameOptions> }
   | { type: "start" }
   | { type: "state"; x: number; y: number; heading: number; speed: number; steer: number }
   | { type: "select"; tileId: string };
 
 const clean = (s: unknown, max: number) => String(s ?? "").trim().replace(/\s+/g, " ").slice(0, max);
+
+const cleanOptions = (o: Partial<GameOptions> | undefined): GameOptions => ({
+  mode: MODES.includes(o?.mode as GameOptions["mode"]) ? o!.mode! : DEFAULT_OPTIONS.mode,
+  minutes: MINUTES.includes(o?.minutes as number) ? o!.minutes! : DEFAULT_OPTIONS.minutes,
+});
 
 // State lives in memory, which is fine because hibernation is off (the default): a room
 // stays awake while anyone is connected, and an empty room has nothing worth keeping.
@@ -43,6 +60,10 @@ export class GameRoom extends Server<Env> {
   title = "";
   taken = new Map<string, string>();     // tile id → id of the player who photographed it, this game
   ended = false;
+  options: GameOptions = { ...DEFAULT_OPTIONS };
+  // Time mode's clock. A plain timer is fine: without hibernation the room stays in memory
+  // while anyone is connected, and once everyone has gone there's no game left to end.
+  clock: ReturnType<typeof setTimeout> | null = null;
   announcing = Promise.resolve();
 
   get open() { return this.players.size > 0 && !this.started; }
@@ -65,7 +86,10 @@ export class GameRoom extends Server<Env> {
       // Every client turns the seed + its slot into the same random starting tiles (see
       // spawnPoint in public/js/game/world.js), so the server doesn't need to know the map.
       const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-      this.broadcast(JSON.stringify({ type: "start", seed }));
+      this.broadcast(JSON.stringify({ type: "start", seed, options: this.options }));
+      if (this.options.mode === "time") {
+        this.clock = setTimeout(() => this.end(null, "time"), this.options.minutes * 60_000);
+      }
       this.announce();
     } else if (msg.type === "state") {
       const { x, y, heading, speed, steer } = msg;
@@ -76,17 +100,40 @@ export class GameRoom extends Server<Env> {
       // First claim wins. Everyone, including the photographer, is told, so the artwork
       // disappears from every player's map at the same time.
       if (this.taken.has(msg.tileId)) return;
-      const mine = [...this.taken.values()].filter(id => id === me.id).length;
-      if (mine >= MAX_PICKS) return;
+      if (this.picks(me.id) >= MAX_PICKS) return;
       this.taken.set(msg.tileId, me.id);
       this.broadcast(JSON.stringify({ type: "selected", id: me.id, tileId: msg.tileId }));
-      // The first player to fill their film ends the game for everyone. Sent after their last
+      // Challenge mode: the first player to fill their film ends the game for everyone.
+      // Time mode: the game ends early once everyone's film is full. Sent after the last
       // 'selected', so every client has the full set of photos when it arrives.
-      if (mine + 1 >= MAX_PICKS) {
-        this.ended = true;
-        this.broadcast(JSON.stringify({ type: "end", id: me.id }));
+      if (this.picks(me.id) >= MAX_PICKS) {
+        if (this.options.mode === "challenge") this.end(me.id, "full");
+        else this.checkAllFull();
       }
     }
+  }
+
+  picks(playerId: string) {
+    return [...this.taken.values()].filter(id => id === playerId).length;
+  }
+
+  checkAllFull() {
+    if (this.started && !this.ended && this.options.mode === "time" && this.players.size &&
+        [...this.players.keys()].every(id => this.picks(id) >= MAX_PICKS)) {
+      this.end(null, "all-full");
+    }
+  }
+
+  end(id: string | null, reason: EndReason) {
+    if (this.ended) return;
+    this.ended = true;
+    this.stopClock();
+    this.broadcast(JSON.stringify({ type: "end", id, reason }));
+  }
+
+  stopClock() {
+    if (this.clock) clearTimeout(this.clock);
+    this.clock = null;
   }
 
   join(msg: Extract<ClientMessage, { type: "join" }>, conn: Connection) {
@@ -101,9 +148,12 @@ export class GameRoom extends Server<Env> {
     const used = new Set([...this.players.values()].map(p => p.slot));
     const slot = [...Array(MAX_PLAYERS).keys()].find(i => !used.has(i))!;
     const name = clean(msg.name, 20) || "Player";
-    if (msg.create) this.title = clean(msg.title, 30) || `${name}’s room`;
+    if (msg.create) {
+      this.title = clean(msg.title, 30) || `${name}’s room`;
+      this.options = cleanOptions(msg.options);
+    }
     this.players.set(conn.id, { id: conn.id, name, host: this.players.size === 0, color: slot, slot });
-    conn.send(JSON.stringify({ type: "joined", selfId: conn.id, room: { id: this.name, title: this.title } }));
+    conn.send(JSON.stringify({ type: "joined", selfId: conn.id, room: { id: this.name, title: this.title, options: this.options } }));
     this.sendPlayers();
     this.announce();
   }
@@ -119,8 +169,10 @@ export class GameRoom extends Server<Env> {
     if (!this.players.size) {
       this.started = false;
       this.title = "";
+      this.stopClock();
     }
     this.sendPlayers();
+    this.checkAllFull();  // the last player still taking photos may have left
     this.announce();
   }
 
@@ -143,6 +195,7 @@ export class GameRoom extends Server<Env> {
           const host = [...this.players.values()].find(p => p.host)!;
           await directory.setRoom({
             id: this.name, title: this.title, host: host.name, players: this.players.size, max: MAX_PLAYERS,
+            options: this.options,
           });
           await this.ctx.storage.setAlarm(Date.now() + HEARTBEAT_MS);
         } else {

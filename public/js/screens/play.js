@@ -6,8 +6,12 @@
 // the map. In multiplayer the server decides who gets each artwork (first claim wins) and tells
 // everyone, so it disappears from every player's map at once.
 //
-// The game ends as soon as anyone fills their film. Only then is the score revealed: how many
-// of each player's photos show the challenge subject (see the finish screen).
+// How the game ends depends on the run's options (ctx.runOptions, see ../options.js):
+// - challenge mode: as soon as anyone fills their film.
+// - time mode: when the clock runs out (in multiplayer the server's 'end' event decides), or
+//   once every film is full.
+// Only then is the score revealed: how many of each player's photos show the challenge subject
+// (see the finish screen).
 import { stepCar, createCar, removeCar, placeCar, syncCarModel, setCarLabel, setCarColor } from '../game/car.js';
 import { chase, groundPointAt, isDragging } from '../game/camera.js';
 import { driveInput, setDrivingEnabled, onKey, onKeyUp } from '../game/input.js';
@@ -17,6 +21,7 @@ import { createPreview } from '../hud/preview.js';
 import { createFilmstrip } from '../hud/filmstrip.js';
 import { COLLECTION_SIZE } from '../config.js';
 import { cssColor, selfPlayer, PLAYER_COLORS } from '../net/net.js';
+import { minutesText } from '../options.js';
 import { canvas } from '../scene.js';
 import { render, esc } from '../ui.js';
 
@@ -26,13 +31,16 @@ const SMOOTHING = 12;      // how fast remote cars catch up with their latest po
 const SCOREBOARD_OTHERS = 4; // other players listed in the HUD (most photos first); the rest are summarised
 const ANNOUNCE_MS = 4000;  // how long the challenge banner stays up at the start
 const END_DELAY_MS = 1800; // pause on "film full" before the results, so the last photo can land
+const HURRY_S = 10;        // the clock turns red for the last few seconds
 
 let $, ctx, net, off = [], minimap, preview, filmstrip;
 let remotes = new Map();   // player id → { player, car, target, picks: tileId[] }
 let departed = [];         // players who left mid-game: { player, picks }, kept for the results
 let sendTimer = 0, idleTimer = 0, lastSent = '';
 let pending = new Set();   // tile ids we've asked the server for and are waiting to hear about
-let ending = null;         // set once the game is over: { by: player name or 'You' }
+let ending = null;         // set once the game is over: { by, reason, players }
+let options;               // this run's { mode, minutes }
+let deadline = 0;          // time mode: performance.now() when the clock runs out
 let timers = [];
 
 const photo = t => ({ id: t.id, acc: t.acc, title: t.title, url: t.url, match: tileMatches(t, ctx.challenge) });
@@ -55,21 +63,50 @@ function results() {
   return players;
 }
 
-// Go to the results. endedBy: who filled their film (null if the player quit early).
-function finishRun(endedBy = null, players = results()) {
-  ctx.go('finish', { mode: ctx.session.mode, challenge: ctx.challenge, endedBy, players });
+// Go to the results. endedBy: who filled their film first (null if not that, e.g. we quit
+// early). reason: 'full' | 'time' | 'all-full' | 'quit' (see the finish screen).
+function finishRun(endedBy = null, reason = 'quit', players = results()) {
+  ctx.go('finish', { mode: ctx.session.mode, options, challenge: ctx.challenge, endedBy, reason, players });
 }
 
-// Someone filled their film: stop driving, say so, then show the results.
-function endGame(byId) {
+// The game is over: stop driving, say why, then show the results.
+// reason 'full': player byId (null for us in single player) filled their film;
+// 'time': the clock ran out; 'all-full': everyone's film is full (time mode).
+function endGame(reason, byId = null) {
   if (ending) return;
-  const self = !net || byId === net.selfId;
-  const name = self ? 'You' : (remotes.get(byId)?.player.name ?? 'Another player');
+  let by = null, title;
+  if (reason === 'full') {
+    const self = !net || byId === net.selfId;
+    by = self ? 'You' : (remotes.get(byId)?.player.name ?? 'Another player');
+    title = self ? 'Your film is full!' : `${by} filled their film!`;
+  } else {
+    title = reason === 'time' ? 'Time’s up!' : 'Everyone’s film is full!';
+  }
   // Take the results now: players may leave while the banner is showing.
-  ending = { by: name, players: results() };
+  ending = { by, reason, players: results() };
   setDrivingEnabled(false);
-  banner(self ? 'Your film is full!' : `${name} filled their film!`, 'Developing the photos…');
-  timers.push(setTimeout(() => finishRun(name, ending.players), END_DELAY_MS));
+  showClock();
+  banner(title, 'Developing the photos…');
+  timers.push(setTimeout(() => finishRun(by, reason, ending.players), END_DELAY_MS));
+}
+
+// --- Time mode clock ---------------------------------------------------------------
+
+const secondsLeft = () => Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
+
+function showClock() {
+  if (options.mode !== 'time') return;
+  const s = ending?.reason === 'time' ? 0 : secondsLeft();
+  const el = $('.clock');
+  el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  el.classList.toggle('hurry', s <= HURRY_S);
+}
+
+function tickClock() {
+  if (options.mode !== 'time' || ending) return;
+  showClock();
+  // Single player ends here; in multiplayer the server's 'end' event ends the game for everyone.
+  if (!net && secondsLeft() <= 0) endGame('time');
 }
 
 // Big message in the middle of the screen. Stays up until replaced unless ms is given.
@@ -123,7 +160,9 @@ function collected(t) {
   flash();
   filmstrip.add(ctx.inventory.items[index], index, preview.img);  // before removeTile hides the preview
   removeTile(t);
-  if (!net && ctx.inventory.full) endGame(null);  // in multiplayer the server sends 'end'
+  if (!ctx.inventory.full) return;
+  if (!net) endGame('full');  // in multiplayer the server sends 'end'
+  else if (options.mode === 'time') banner('Your film is full!', 'Waiting for the others to finish…');
 }
 
 function onSelected({ id, tileId }) {
@@ -227,10 +266,12 @@ export default {
     pending = new Set();
     ending = null;
     departed = [];
+    options = ctx.runOptions;
     setCarColor(ctx.car, selfPlayer(net)?.color ?? PLAYER_COLORS[0]);
     $ = render(root, `
       <div class="panel hud">
         <div class="status"></div>
+        <div class="clock" hidden></div>
         <div class="goal"></div>
         <div class="inv"></div>
         <div class="scores"></div>
@@ -243,9 +284,18 @@ export default {
       <div class="tip"></div>`);
     $('.finish-btn').onclick = () => finishRun();
     const goal = ctx.challenge?.name ?? 'artworks';
-    $('.goal').textContent = `Goal: photograph ${COLLECTION_SIZE} ${goal}`;
-    banner(`Photograph ${COLLECTION_SIZE} examples of ${goal}`,
-      net ? 'The first player to fill their film ends the game' : 'Your film holds 10 photos, so choose carefully', ANNOUNCE_MS);
+    if (options.mode === 'time') {
+      deadline = performance.now() + options.minutes * 60_000;
+      $('.clock').hidden = false;
+      showClock();
+      $('.goal').textContent = `Goal: photograph ${goal}`;
+      banner(`Photograph as many ${goal} as you can`,
+        `You have ${minutesText(options.minutes)}, and your film holds ${COLLECTION_SIZE} photos`, ANNOUNCE_MS);
+    } else {
+      $('.goal').textContent = `Goal: photograph ${COLLECTION_SIZE} ${goal}`;
+      banner(`Photograph ${COLLECTION_SIZE} examples of ${goal}`,
+        net ? 'The first player to fill their film ends the game' : `Your film holds ${COLLECTION_SIZE} photos, so choose carefully`, ANNOUNCE_MS);
+    }
     minimap = createMinimap();
     preview = createPreview();
     filmstrip = createFilmstrip(COLLECTION_SIZE);
@@ -283,7 +333,7 @@ export default {
         net.on('players', syncPlayers),
         net.on('state', s => { const r = remotes.get(s.id); if (r) r.target = s; }),
         net.on('selected', onSelected),
-        net.on('end', ({ id }) => endGame(id)),
+        net.on('end', ({ id, reason }) => endGame(reason, id)),
         net.on('error', msg => { $('.net-error').textContent = msg; }),
       );
       syncPlayers(net.players);
@@ -293,6 +343,7 @@ export default {
 
   update(dt) {
     stepCar(ctx.car, driveInput(), dt);  // input is off once the game ends, so the car coasts to a stop
+    tickClock();
     if (net) {
       sendOwnState(dt);
       updateRemotes(dt);

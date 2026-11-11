@@ -9,6 +9,7 @@ import { loadWorld, loadImages, updateTextures, spawnPoint, randomSeed, restoreT
 import { createCar, placeCar, syncCarModel } from './game/car.js';
 import { chase, updateCamera } from './game/camera.js';
 import { inventory } from './inventory.js';
+import { loadOptions, cleanOptions } from './options.js';
 import landing from './screens/landing.js';
 import lobby from './screens/lobby.js';
 import play from './screens/play.js';
@@ -22,6 +23,8 @@ let current = null;
 const ctx = {
   car: null,                                  // the local player's car (also the camera's target)
   challenge: null,                            // this run's { label, name, tiles }: photograph 10 of these
+  options: loadOptions(),                     // the player's chosen { mode, minutes } (options.js), set on the landing screen
+  runOptions: null,                           // this run's { mode, minutes }: ctx.options, or the room's in multiplayer
   session: { mode: 'single', net: null },     // mode: 'single' | 'multi'; net: a Net (net/net.js) in multiplayer
   inventory,
 
@@ -35,9 +38,11 @@ const ctx = {
   // Put back any photographed artworks, pick the challenge, put the car on a random starting
   // tile and empty the inventory, ready for a new run.
   // In multiplayer, pass the player's slot (Player.slot) and the seed from the 'start' event
-  // so every player gets a different tile and everyone agrees on where everyone starts.
-  newRun(slot = 0, seed = randomSeed()) {
+  // so every player gets a different tile and everyone agrees on where everyone starts,
+  // plus the room's options from the same event.
+  newRun(slot = 0, seed = randomSeed(), options = ctx.options) {
     restoreTiles();
+    ctx.runOptions = cleanOptions(options);
     ctx.challenge = challengeFor(seed);
     const s = spawnPoint(seed, slot);
     placeCar(ctx.car, s.x, s.y, s.heading);
