@@ -120,6 +120,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 .finish { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: #0d0f14; }
 .finish .works { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; text-align: left; }
 .finish figure { margin: 0; }
+.finish .attribution { margin-top: 2px; font-size: 0.9em; opacity: 0.8; }
+.finish .attribution a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.finish .attribution a:hover { opacity: 1; color: #fff; }
 .finish img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; }
 .finish h3 { margin: 16px 0 0; text-align: left; display: flex; align-items: baseline; gap: 6px; }
 .finish .challenge { margin: 0; }

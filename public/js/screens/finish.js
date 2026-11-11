@@ -15,13 +15,37 @@ import { chase, normaliseOrbit } from '../game/camera.js';
 import { cssColor } from '../net/net.js';
 import { COLLECTION_SIZE } from '../config.js';
 import { cleanOptions, minutesText, mapLabel } from '../options.js';
+import { world } from '../game/world.js';
 
 let $;
+
+// A tile's attribution is HTML from the layout (the artist's name linked to their page, then their
+// dates). Rebuild it from its text and http(s) links only, so nothing else in it can reach the page.
+function attributionHtml(html) {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const part = node => {
+    if (node.nodeType === Node.TEXT_NODE) return esc(node.textContent);
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const inner = [...node.childNodes].map(part).join('');
+    const href = node.localName === 'a' ? node.getAttribute('href') ?? '' : '';
+    return /^https?:\/\//i.test(href)
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+      : inner;
+  };
+  return [...doc.body.childNodes].map(part).join('');
+}
 
 function ordinal(n) {
   const suffix = ['th', 'st', 'nd', 'rd'], v = n % 100;
   return n + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]);
 }
+
+// Photos don't carry the attribution, so look it up on the tile (still in world.byId once photographed).
+const attribution = p => {
+  const html = attributionHtml(p.attribution ?? world.byId.get(p.id)?.attribution);
+  return html ? `<div class="attribution">${html}</div>` : '';
+};
 
 const photoGrid = photos => `
   <div class="works">
@@ -31,7 +55,10 @@ const photoGrid = photos => `
           <img src="${esc(p.url)}" alt="${esc(p.title)}" loading="lazy">
           ${p.match ? '<span class="tick" aria-label="Matches the challenge">✓</span>' : ''}
         </div>
-        <figcaption>${esc(p.title)} <span class="muted">(${esc(p.acc)})</span></figcaption>
+        <figcaption>
+          ${esc(p.title)} <span class="muted">(${esc(p.acc)})</span>
+          ${attribution(p)}
+        </figcaption>
       </figure>`).join('')}
   </div>`;
 
