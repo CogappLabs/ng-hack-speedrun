@@ -67,7 +67,7 @@ export function syncCarModel(car, dt) {
   // Lean out of corners a little, proportional to how hard we're turning.
   const lean = -car.steer * Math.min(1, Math.abs(car.speed) / CAR.maxSpeed) * 0.06;
   body.rotation.x += (lean - body.rotation.x) * Math.min(1, dt * 8);
-  const spin = (car.speed * dt) / 13;
+  const spin = (car.speed * dt) / WHEEL_R;
   for (let i = 0; i < 4; i++) {
     wheels[i].rotation.z -= spin;
     if (i < 2) wheels[i].rotation.y = -car.steer * 0.35;  // front wheels turn
@@ -75,12 +75,21 @@ export function syncCarModel(car, dt) {
 }
 
 // --- Model -------------------------------------------------------------------------
-// Built facing +X so that rotation.y = -heading lines it up with the 2D heading.
+// A safari wagon: boxy two-tone body (player colour below, cream roof), chunky tyres, roof rack
+// with luggage, bull bar, snorkel and a spare wheel on the back. Built facing +X so that
+// rotation.y = -heading lines it up with the 2D heading. Units: world units (car is 96 long).
 const glass = new THREE.MeshStandardMaterial({ color: 0x1d2a35, roughness: 0.1, metalness: 0.6 });
-const headMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+const cream = new THREE.MeshStandardMaterial({ color: 0xece2c6, roughness: 0.6 });
+const trim = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5, metalness: 0.4 });
+const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a7350, roughness: 0.9 });
+const canMat = new THREE.MeshStandardMaterial({ color: 0x3f5b3a, roughness: 0.6 });
+const headMat = new THREE.MeshBasicMaterial({ color: 0xffe8a3 });
 const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
-const tyre = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-const wheelGeo = new THREE.CylinderGeometry(13, 13, 10, 18).rotateX(Math.PI / 2);
+const tyre = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.95 });
+const WHEEL_R = 15;
+const wheelGeo = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 12, 20).rotateX(Math.PI / 2);
+const hubGeo = new THREE.CylinderGeometry(7, 7, 13, 12).rotateX(Math.PI / 2);
+const spokeGeo = new THREE.BoxGeometry(2.5, 12, 13.5);  // shows the wheels turning
 const shadowMat = (() => {
   // Soft blob shadow so the car reads as sitting on the paintings.
   const c = document.createElement('canvas');
@@ -94,37 +103,83 @@ const shadowMat = (() => {
   return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
 })();
 
+// A box of size (sx, sy, sz) centred at (x, y, z).
+function box(mat, sx, sy, sz, x, y, z = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+  m.position.set(x, y, z);
+  return m;
+}
+
+function buildWheel() {
+  const w = new THREE.Group();
+  w.add(new THREE.Mesh(wheelGeo, tyre), new THREE.Mesh(hubGeo, cream), new THREE.Mesh(spokeGeo, trim));
+  return w;
+}
+
 function buildModel(color) {
   const { length: L, width: W } = CAR;
   const group = new THREE.Group();
   const body = new THREE.Group();  // tilts with steering; the wheels and shadow stay put
-  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
+  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1 });
+  const cabinX = -L * 0.08, cabinL = L * 0.8;          // the tall rear section
+  const front = cabinX + cabinL / 2, back = cabinX - cabinL / 2;
 
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(L, 22, W), paint);
-  chassis.position.y = 22;
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(L * 0.5, 20, W * 0.86), glass);
-  cabin.position.set(-L * 0.06, 43, 0);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(L * 0.42, 4, W * 0.8), paint);
-  roof.position.set(-L * 0.08, 54, 0);
-  body.add(chassis, cabin, roof);
-  for (const z of [-W * 0.32, W * 0.32]) {
-    const head = new THREE.Mesh(new THREE.BoxGeometry(2, 7, 11), headMat);
-    head.position.set(L / 2 + 1, 25, z);
-    const rear = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 11), tailMat);
-    rear.position.set(-L / 2 - 1, 25, z);
-    body.add(head, rear);
+  body.add(
+    box(paint, L, 18, W, 0, 31),                          // lower body, high off the ground
+    box(trim, L + 2, 4, W + 2, 0, 23),                    // sills / bumpers
+    box(paint, cabinL, 22, W * 0.94, cabinX, 51),         // boxy cabin
+    box(cream, cabinL + 4, 3, W * 0.98, cabinX, 63.5),    // cream roof (two-tone)
+    // Windows all round
+    box(glass, cabinL * 0.84, 12, 1, cabinX, 53, W * 0.47 + 0.6),
+    box(glass, cabinL * 0.84, 12, 1, cabinX, 53, -W * 0.47 - 0.6),
+    box(glass, 1, 13, W * 0.8, front + 0.6, 53),
+    box(glass, 1, 10, W * 0.7, back - 0.6, 55),
+  );
+
+  // Roof rack: two rails on posts, cross bars, a crate and two jerry cans.
+  for (const z of [-W * 0.42, W * 0.42]) {
+    body.add(box(trim, cabinL * 0.9, 2, 2, cabinX, 69, z));
+    for (const x of [front - 6, back + 6]) body.add(box(trim, 2, 5, 2, x, 66.5, z));
   }
+  for (const x of [front - 8, cabinX, back + 8]) body.add(box(trim, 2, 2, W * 0.86, x, 69));
+  body.add(
+    box(crateMat, 22, 9, 22, cabinX - 10, 74.5),
+    box(canMat, 7, 10, 10, cabinX + 14, 75, -7),
+    box(canMat, 7, 10, 10, cabinX + 22, 75, -7),
+  );
+
+  // Bull bar, snorkel, lights
+  for (const z of [-W * 0.3, W * 0.3]) body.add(box(trim, 3, 20, 3, L / 2 + 4, 30, z));
+  body.add(
+    box(trim, 3, 3, W * 0.72, L / 2 + 4, 39),
+    box(trim, 3, 3, W * 0.72, L / 2 + 4, 26),
+    box(trim, 3, 30, 3, front - 4, 52, W / 2 + 2),       // snorkel up the right-hand side
+    box(trim, 8, 3, 3, front - 2, 66, W / 2 + 2),
+  );
+  const lampGeo = new THREE.CylinderGeometry(4, 4, 2, 14).rotateZ(Math.PI / 2);
+  for (const z of [-W * 0.32, W * 0.32]) {
+    const lamp = new THREE.Mesh(lampGeo, headMat);
+    lamp.position.set(L / 2 + 0.8, 33, z);
+    body.add(lamp, box(tailMat, 2, 7, 6, -L / 2 - 1, 33, z * 1.2));
+  }
+
+  // Spare wheel on the back door.
+  const spare = buildWheel();
+  spare.rotation.y = Math.PI / 2;
+  spare.scale.setScalar(0.85);
+  spare.position.set(-L / 2 - 7, 42, 0);
+  body.add(spare);
   group.add(body);
 
   const wheels = [];
-  for (const [x, z] of [[L * 0.3, -W / 2], [L * 0.3, W / 2], [-L * 0.3, -W / 2], [-L * 0.3, W / 2]]) {
-    const w = new THREE.Mesh(wheelGeo, tyre);
-    w.position.set(x, 13, z);
+  for (const [x, z] of [[L * 0.32, -W / 2], [L * 0.32, W / 2], [-L * 0.3, -W / 2], [-L * 0.3, W / 2]]) {
+    const w = buildWheel();
+    w.position.set(x, WHEEL_R, z);
     wheels.push(w);
     group.add(w);
   }
 
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(L * 1.4, W * 1.6).rotateX(-Math.PI / 2), shadowMat);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(L * 1.5, W * 1.7).rotateX(-Math.PI / 2), shadowMat);
   shadow.position.y = 1;
   group.add(shadow);
   return { group, body, wheels, paint };
@@ -153,7 +208,7 @@ export function setCarLabel(car, text) {
   tex.colorSpace = THREE.SRGBColorSpace;
   const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
   label.scale.set(c.width * 0.9, c.height * 0.9, 1);
-  label.position.y = 110;
+  label.position.y = 105;
   label.renderOrder = 1;
   car.model.group.add(label);
   car.label = label;

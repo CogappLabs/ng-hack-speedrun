@@ -9,10 +9,12 @@ const TEX_KEEP = 28;       // cells: textures further than this are freed
 const TEX_PER_FRAME = 8;   // texture uploads allowed per frame (keeps frame times smooth)
 const TEX_MAX_PX = 512;    // longest side of an uploaded texture
 
-// tiles: [{id, acc, title, url, col, row, mesh, img?, avg?, removed?}]. avg is the image's average
+// tiles: [{id, acc, title, url, col, row, labels?, mesh, img?, avg?, removed?}]. labels are the
+// subjects found in the artwork (e.g. ["hat", "horse"]). avg is the image's average
 // colour as a CSS string, once loaded (used by the locator map). removed is set once the artwork
 // has been collected this run. version goes up whenever tiles are removed or restored.
-export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map(), version: 0 };
+// challenges: [{ label, name, tiles }], e.g. { label: 'hat', name: 'hats', tiles: 394 }.
+export const world = { cols: 0, rows: 0, tiles: [], challenges: [], byCell: new Map(), byId: new Map(), version: 0 };
 export const progress = { loaded: 0, total: 0, done: false };
 
 // The tile at a world position, or undefined for a gap (including a collected artwork's cell).
@@ -59,6 +61,16 @@ export function spawnPoint(seed, slot = 0) {
 
 export const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
 
+// The run's challenge (which subject to photograph), picked from `seed` so every player in a
+// multiplayer game gets the same one. Uses a different stream from spawnPoint's.
+export function challengeFor(seed) {
+  const rand = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+  return world.challenges[Math.floor(rand() * world.challenges.length)] ?? null;
+}
+
+// Does this tile show the challenge's subject?
+export const tileMatches = (tile, challenge) => !!challenge && !!tile?.labels?.includes(challenge.label);
+
 // Small seeded random number generator (returns floats in [0, 1)).
 function mulberry32(a) {
   return () => {
@@ -74,10 +86,13 @@ const placeholderMat = new THREE.MeshBasicMaterial({ color: 0x3a3a3a });
 const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());  // keeps low-angle tiles sharp
 
 export async function loadWorld(url = 'layout.json') {
-  const layout = await (await fetch(url)).json();
+  // Always check for a newer layout (a cheap 304 when unchanged). A stale cached copy would give
+  // this player a different map, starting tiles and challenge from everyone else in a game.
+  const layout = await (await fetch(url, { cache: 'no-cache' })).json();
   world.cols = layout.cols;
   world.rows = layout.rows;
   world.tiles = layout.tiles;
+  world.challenges = layout.challenges ?? [];
   for (const t of world.tiles) {
     world.byCell.set(t.col + ',' + t.row, t);
     world.byId.set(t.id, t);

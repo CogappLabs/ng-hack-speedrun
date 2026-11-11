@@ -11,7 +11,7 @@ export default {
     $ = render(root, `
       <div class="panel centre landing">
         <h1>Art Drive</h1>
-        <p class="muted">Drive across the National Gallery's collection and collect the works you love.</p>
+        <p class="muted">Race across the National Gallery's collection and photograph the paintings that match your challenge.</p>
         <div class="row">
           <button class="primary" data-mode="single">Single player</button>
           <button data-mode="multi">Multiplayer</button>

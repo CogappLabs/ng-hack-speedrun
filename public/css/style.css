@@ -34,9 +34,27 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
 button:disabled { opacity: 0.5; cursor: default; }
 
 /* --- Play (js/screens/play.js) --- */
-.hud { position: absolute; top: 8px; left: 8px; padding: 6px 10px; border-radius: 4px; pointer-events: none; }
+.hud { position: absolute; top: 8px; left: 8px; padding: 6px 10px; border-radius: 4px; pointer-events: none;
+  max-width: min(300px, calc(50vw - 230px)); min-width: 160px; }
 .hud button { pointer-events: auto; margin-top: 6px; padding: 4px 10px; }
 .hud .net-error { color: #f88; }
+.hud .goal { font-weight: 600; color: #fff; }
+
+/* Challenge announcement / game over banner, centre of the play screen */
+.banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); padding: 18px 28px;
+  text-align: center; pointer-events: none; max-width: calc(100vw - 32px); box-sizing: border-box;
+  animation: banner-in 0.4s ease-out; }
+.banner[hidden] { display: none; }
+.banner.fade { opacity: 0; transition: opacity 0.8s; }
+.banner-title { font-size: clamp(20px, 3.2vw, 34px); font-weight: 700; color: #fff; }
+.banner-sub { margin-top: 6px; }
+@keyframes banner-in { from { opacity: 0; transform: translate(-50%, -40%); } }
+
+/* Camera flash when taking a photo */
+.flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.flash.go { animation: flash 0.35s ease-out; }
+@keyframes flash { from { opacity: 0.6; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .flash.go { animation: none; } }
 .minimap { position: absolute; top: 8px; right: 8px; width: min(188px, 30vw); height: auto;
   background: #000a; border-radius: 4px; pointer-events: none; }
 
@@ -47,6 +65,11 @@ button:disabled { opacity: 0.5; cursor: default; }
 .preview img { display: block; margin: 0 auto; max-width: 100%; max-height: 22vh; border-radius: 2px; }
 .preview-title { margin-top: 6px; font-weight: 600; }
 .preview-hint { font-size: 12px; }
+/* Hold Z: the preview snaps to fill most of the screen. --ar (width / height) is set from the
+   image, so the height can be chosen to fit both ways and the image scales up past its own size. */
+.preview.zoomed { max-width: calc(100vw - 32px); z-index: 5; }
+.preview.zoomed img { max-width: none; max-height: none; width: auto;
+  height: min(calc(100vh - 110px), calc((100vw - 48px) / var(--ar, 1))); }
 
 /* Film strip, bottom centre (js/hud/filmstrip.js): frames between two rows of sprocket holes */
 .filmstrip {
@@ -71,9 +94,18 @@ button:disabled { opacity: 0.5; cursor: default; }
 .tip { position: fixed; background: #000c; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; max-width: 320px; }
 
 /* --- Finish (js/screens/finish.js) --- */
-.finish { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.finish { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: #0d0f14; }
 .finish .works { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; text-align: left; }
 .finish figure { margin: 0; }
 .finish img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; }
-.finish h3 { margin: 16px 0 0; text-align: left; }
+.finish h3 { margin: 16px 0 0; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+.finish .challenge { margin: 0; }
+.finish .rank { font-weight: 700; min-width: 2.2em; }
+.finish .score { margin-left: auto; font-weight: 600; }
+.finish .result.self h3 { color: #fff; }
+.finish .photo { position: relative; }
+.finish .match img { outline: 3px solid #2a9d4a; outline-offset: -3px; }
+.finish .tick { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+  background: #2a9d4a; color: #fff; font: 700 14px/22px system-ui, sans-serif; text-align: center;
+  box-shadow: 0 1px 4px #0008; }
 .finish figcaption { font-size: 12px; margin-top: 4px; }

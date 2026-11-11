@@ -26,9 +26,10 @@
 //   'players'  (players: Player[])      the room's player list changed (join, leave, new host)
 //   'start'    ({ seed })                the host started the game; pass seed to ctx.newRun()
 //   'state'    (state: CarState)         another player's car moved
-//   'selected' ({ id, tileId })         a player (possibly us) collected an artwork. The server only
+//   'selected' ({ id, tileId })         a player (possibly us) photographed an artwork. The server only
 //                                        confirms the first claim on each tile, so this is the moment
 //                                        to add it to the inventory (if id is ours) and remove it from the map
+//   'end'      ({ id })                  player `id` filled their film, so the game is over for everyone
 //   'error'    (message: string)         e.g. lost connection to the server
 
 // One colour per player slot: hues spread evenly round the colour wheel, starting at the

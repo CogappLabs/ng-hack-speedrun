@@ -6,6 +6,7 @@
 //                    { type: 'state', x, y, heading, speed, steer } · { type: 'select', tileId }
 //   Server → client: { type: 'joined', selfId, room: { id, title } } · { type: 'players', players }
 //                    { type: 'start', seed } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
+//                    { type: 'end', id }
 //                    { type: 'error', message }
 //
 // Room directory (/parties/room-directory/all), listen only:
@@ -70,6 +71,9 @@ export function createPartyNet() {
           }
           case 'selected':
             emit('selected', { id: m.id, tileId: m.tileId });
+            break;
+          case 'end':
+            emit('end', { id: m.id });
             break;
         }
       });

@@ -1,6 +1,7 @@
 // Keyboard input. Arrow keys drive only while driving is enabled (the play screen turns it on).
 const keys = new Set();
 const listeners = new Set();
+const upListeners = new Set();
 let driving = false;
 
 export function setDrivingEnabled(on) {
@@ -29,5 +30,18 @@ addEventListener('keydown', e => {
   if (driving && e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); }
   for (const fn of listeners) fn(e);
 });
-addEventListener('keyup', e => keys.delete(e.key));
-addEventListener('blur', () => keys.clear());
+// Listen for keyup. Also called with { key: null } when the window loses focus, since the
+// matching keyup never arrives then. Returns an unsubscribe function.
+export function onKeyUp(fn) {
+  upListeners.add(fn);
+  return () => upListeners.delete(fn);
+}
+
+addEventListener('keyup', e => {
+  keys.delete(e.key);
+  for (const fn of upListeners) fn(e);
+});
+addEventListener('blur', () => {
+  keys.clear();
+  for (const fn of upListeners) fn({ key: null });
+});

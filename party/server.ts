@@ -12,7 +12,8 @@
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 
 const MAX_PLAYERS = 10;         // keep in step with PLAYER_COLORS (public/js/net/net.js)
-const MAX_PICKS = 10;           // artworks per player; keep in step with COLLECTION_SIZE (public/js/config.js)
+const MAX_PICKS = 10;           // photos per player; keep in step with COLLECTION_SIZE (public/js/config.js).
+                                // The game ends for everyone when the first player reaches it.
 const HEARTBEAT_MS = 30_000;    // open rooms re-announce themselves this often...
 const STALE_MS = 75_000;        // ...and the directory drops rooms it hasn't heard from in this long
 const DIRECTORY = "all";        // the single RoomDirectory instance
@@ -40,7 +41,8 @@ export class GameRoom extends Server<Env> {
   players = new Map<string, Player>();   // in join order, so the first one is the longest-standing
   started = false;
   title = "";
-  taken = new Map<string, string>();     // tile id → id of the player who collected it, this game
+  taken = new Map<string, string>();     // tile id → id of the player who photographed it, this game
+  ended = false;
   announcing = Promise.resolve();
 
   get open() { return this.players.size > 0 && !this.started; }
@@ -58,6 +60,7 @@ export class GameRoom extends Server<Env> {
 
     if (msg.type === "start" && me.host && !this.started) {
       this.started = true;
+      this.ended = false;
       this.taken.clear();
       // Every client turns the seed + its slot into the same random starting tiles (see
       // spawnPoint in public/js/game/world.js), so the server doesn't need to know the map.
@@ -68,14 +71,21 @@ export class GameRoom extends Server<Env> {
       const { x, y, heading, speed, steer } = msg;
       if (![x, y, heading, speed, steer].every(Number.isFinite)) return;
       this.broadcast(JSON.stringify({ type: "state", id: me.id, x, y, heading, speed, steer }), [sender.id]);
-    } else if (msg.type === "select" && this.started && typeof msg.tileId === "string" && msg.tileId.length <= 64) {
-      // First claim wins. Everyone, including the collector, is told, so the artwork
+    } else if (msg.type === "select" && this.started && !this.ended &&
+               typeof msg.tileId === "string" && msg.tileId.length <= 64) {
+      // First claim wins. Everyone, including the photographer, is told, so the artwork
       // disappears from every player's map at the same time.
       if (this.taken.has(msg.tileId)) return;
       const mine = [...this.taken.values()].filter(id => id === me.id).length;
       if (mine >= MAX_PICKS) return;
       this.taken.set(msg.tileId, me.id);
       this.broadcast(JSON.stringify({ type: "selected", id: me.id, tileId: msg.tileId }));
+      // The first player to fill their film ends the game for everyone. Sent after their last
+      // 'selected', so every client has the full set of photos when it arrives.
+      if (mine + 1 >= MAX_PICKS) {
+        this.ended = true;
+        this.broadcast(JSON.stringify({ type: "end", id: me.id }));
+      }
     }
   }
 

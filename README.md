@@ -2,9 +2,10 @@
 Dash to gather artworks. Created for the National Gallery Hack Day November 2026
 
 A web game where you drive a car across a 3D landscape made of National Gallery
-artworks, laid flat like floor tiles. Paintings that look similar sit next to each other, so you drive
-between neighbouring works and (soon) jump across the gaps between groups. Play on your
-own or with up to 9 others.
+artworks, laid flat like floor tiles. Paintings that look similar sit next to each other.
+Each game sets a challenge, such as "photograph 10 examples of hats": you have 10 photos,
+and you score a point for every one that shows the subject. Play on your own or race up to
+9 others: the game ends as soon as anyone fills their film.
 
 Play it at https://cogapplabs.github.io/ng-hack-speedrun/.
 
@@ -73,23 +74,37 @@ push. To try the live game against another server without changing the code, add
 | Scroll wheel | Move the camera closer to or further from the car |
 | Drag | Swing the camera around the car (press any arrow key to swing it back) |
 | Hover | Show the artwork's title |
-| Space | Collect the artwork under the car (up to 10) |
-| Esc | Finish the run and see your selections |
+| Space | Photograph the artwork under the car (10 photos per game) |
+| Z (hold) | Enlarge the painting preview to fill the screen; let go to shrink it back |
+| Esc | Quit the game and see your results so far |
+
+### How a game works
+
+1. **Challenge**: the game picks one of the subjects found in the paintings (hats, horses,
+   halos, …) and announces "Photograph 10 examples of …". In multiplayer everyone gets the
+   same challenge.
+2. **Photograph**: drive around and press Space on paintings you think show the subject.
+   Each photographed painting disappears from the map (for every player), so you can't
+   take a photo someone else already has. Choose carefully: you only have 10 photos.
+3. **End**: the game ends as soon as any player has taken 10 photos.
+4. **Score**: the results show everyone's photos, with a tick on each one that shows the
+   subject. Your score is the number of ticks, and the highest score wins. Scores stay
+   hidden until the end.
 
 Each run starts on a random tile, facing a random direction. In multiplayer, every player
 starts somewhere different. The host starts the game for everyone. Other players' cars show
-their names, and the HUD shows your collection count plus the top 4 other players (with
-"+ N more" for the rest). The final screen shows what the others had collected when you finished.
+their names, and the HUD shows how many photos each player has taken: you, plus the top 4
+other players (with "+ N more" for the rest).
 
 On screen:
 
 - **Top centre**: a preview of the artwork under the car, with its title. It's hidden when
   you're in a gap.
-- **Bottom**: a film strip with 10 frames. Press Space and the artwork flies from the preview
-  into the next empty frame. It then disappears from the map (for every player in
-  multiplayer), leaving a gap until the next run. Once all 10 frames are full you can't
-  collect any more.
-- **Top left**: collection count, scoreboard, controls and the Finish button.
+- **Bottom**: a film strip with 10 frames. Press Space for a camera flash, and the artwork
+  flies from the preview into the next empty frame. It then disappears from the map (for
+  every player in multiplayer), leaving a gap until the next run.
+- **Top left**: the challenge, photos taken, scoreboard, controls and the Quit button.
+- **Centre**: the challenge when the game starts, and who filled their film when it ends.
 - **Top right**: the locator map (top right) shows the whole grid, each artwork in its average colour, with a
 dot for every player. Yours is the larger dot with an arrow pointing where you're heading.
 
@@ -97,10 +112,14 @@ dot for every player. Yours is the larger dot with an arrow pointing where you'r
 
 ### Input data
 
-`input/vectors_2d.tsv` has one row per artwork: an image URL (`image_mid_url`)
-and several 2D projections (`clip_*`, `curatorial_*`, `visual_*`, `combined_*`).
+`input/vectors_2d.tsv` has one row per artwork: its object id (`uid`), an image URL
+(`image_mid_url`), the IIIF image URL (`image_iiif_url`, used to match subject labels) and
+several 2D projections (`clip_*`, `curatorial_*`, `visual_*`, `combined_*`).
 The layout uses `visual_x` / `visual_y`, which places artworks that look alike
-close together. Rows with no image or coordinates are skipped (12 of 2,411).
+close together. Rows with no image or coordinates are skipped (14 of 2,412).
+
+`input/filtered_subjects.tsv` lists the subjects found in each image (see
+"Subject labels" below).
 
 ### Layout (`scripts/build_layout.py`)
 
@@ -110,7 +129,9 @@ snaps each artwork to its own cell of a square grid:
 1. Scale the points onto a grid with `--slack` cells per artwork (default **3**).
 2. Give each artwork a unique cell, keeping the total squared distance moved as
    small as possible (Hungarian algorithm, `scipy.optimize.linear_sum_assignment`).
-3. Write `public/layout.json`: `{cols, rows, tiles: [{id, acc, title, url, col, row}]}`.
+3. Attach subject labels from `input/filtered_subjects.tsv` (see below).
+4. Write `public/layout.json`:
+   `{cols, rows, challenges: [{label, name, tiles}], tiles: [{id, acc, title, url, col, row, labels?}]}`.
 
 Using several cells per artwork keeps the outline close to the original scatter
 plot and leaves gaps between groups. These gaps are the "islands" you'll jump
@@ -123,7 +144,18 @@ between. The slack value controls the trade-off:
 | 4 | 0.76 | 126 | 824 |
 | 8 | 0.5 | 465 | 205 |
 
-Islands count side-by-side tiles only, not diagonal ones.
+Islands count side-by-side tiles only, not diagonal ones. These figures were measured on an
+earlier export of the data, so the current numbers will differ slightly.
+
+#### Subject labels (challenges)
+
+`input/filtered_subjects.tsv` has one row per subject found in an image, e.g. a hat or a horse
+(`label`), with a plural display name (`category`, e.g. "hats"). Subjects are tagged per
+*image*, so they're matched to artworks on the image id: the last part of a tile's
+`image_iiif_url` in `vectors_2d.tsv` equals the subject's `image_pid`. (The `uid` column is
+the artwork's object id, which is a different id.) Each tile gets the sorted list of its
+labels, and every label found on at least `--min-tiles` tiles (default 10) becomes a possible
+challenge, with `name` set from `category`. Rebuild the layout whenever either file changes.
 
 Other options:
 
@@ -150,8 +182,9 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
   to the car first. Only tiles within `TEX_RADIUS` cells of the car get a GPU
   texture (resized to 512px at most), and textures beyond `TEX_KEEP` are freed.
   Uploading all 2,400 at once would use too much GPU memory. Fog hides the edge.
-- **Cars**: a simple box model with turning front wheels and a slight lean in corners,
-  one per player. Arcade handling (heading + speed, steering scaled by speed), with
+- **Cars**: a safari wagon built from simple boxes: the player's colour with a cream roof,
+  roof rack and luggage, bull bar, snorkel and a spare wheel on the back. The front wheels
+  turn and the body leans a little in corners. One car per player. Arcade handling (heading + speed, steering scaled by speed), with
   all the numbers in the `CAR` settings block in `js/game/car.js`.
 - **Starting positions**: `spawnPoint(seed, slot)` in `js/game/world.js` shuffles the tiles
   with a seeded random number generator and gives each slot its own tile and heading. In
@@ -181,12 +214,16 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
   Rooms hold up to 10 players (`MAX_PLAYERS` in `party/server.ts`).
 - **During a game**: each browser sends its car's position about 15 times a second, and
   the server relays it to the others, who smooth it out.
-- **Collecting**: Space sends a claim for the artwork to the server. The first claim on each
-  artwork wins (others are ignored, as are claims beyond 10 per player). The server then tells
-  every player, including the collector, so the artwork vanishes from every map at the same
-  moment. The collector's film strip animation starts when the confirmation arrives.
-- The server keeps no game state beyond the player list and this game's collected artworks, so
-  nothing is stored. With 10
+- **Photographing**: Space sends a claim for the artwork to the server. The first claim on
+  each artwork wins (others are ignored, as are claims beyond 10 per player). The server then
+  tells every player, including the photographer, so the artwork vanishes from every map at
+  the same moment. The photographer's film strip animation starts when the confirmation
+  arrives. When a player's 10th photo is confirmed, the server sends `end` to everyone.
+- **Challenge and scores** need no server support: the challenge is picked from the same random
+  seed as the starting tiles, and each browser scores the photos itself from the labels in
+  `layout.json`.
+- The server keeps no game state beyond the player list and this game's photographed artworks,
+  so nothing is stored. With 10
   players that's about 150 messages in and 1,350 out per second per room, which is light
   for one Durable Object.
 - **Colours**: `PLAYER_COLORS` in `public/js/net/net.js` spreads 10 hues evenly round the
