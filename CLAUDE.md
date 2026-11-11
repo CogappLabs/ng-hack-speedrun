@@ -35,7 +35,7 @@ public/
   js/scene.js            the one renderer / scene / camera
   js/ui.js               DOM helpers (render, esc)
   js/inventory.js        the local player's photographed artworks (at most COLLECTION_SIZE)
-  js/options.js          game options ({ mode: 'time' | 'challenge', minutes }), saved in localStorage
+  js/options.js          game options ({ map, difficulty, mode, minutes }), saved in localStorage
   js/net/net.js          multiplayer Net interface, player colours, emitter
   js/net/partykit.js     Net implementation over partysocket (client side of party/server.ts)
   js/game/world.js       layout, tiles, image loading, textures
@@ -66,11 +66,20 @@ Change these only on purpose, and say so in the commit message, because other se
 - `ctx.session`: `{ mode: 'single' | 'multi', net: Net | null }`
 - `ctx.inventory`: see below
 - `ctx.challenge`: this run's `{ label, name, tiles }`, e.g. `{ label: 'hat', name: 'hats' }`
-- `ctx.options`: the player's chosen `{ mode, minutes }` (landing screen; also used for rooms they create)
-- `ctx.runOptions`: this run's `{ mode, minutes }` (ctx.options, or the room's in multiplayer)
+- `ctx.options`: the player's chosen `{ map, difficulty, mode, minutes }` (landing screen; also used for rooms they create)
+- `ctx.runOptions`: this run's options (ctx.options, or the room's in multiplayer)
 - `ctx.newRun(slot = 0, seed = random, options = ctx.options)`: put photographed artworks back on the map, pick the
   challenge, set `ctx.runOptions`, put the car on its random starting tile and empty the inventory. In multiplayer pass `Player.slot`, and the seed and options from the `start` event, so all
   players agree where everyone starts (`spawnPoint(seed, slot)` in `js/game/world.js`).
+  The world must already be on the options' map: `await useMap(map, difficulty)` first.
+
+**Maps**: one layout per map style (`visual` default, `curatorial`, `clip`) and difficulty
+(`easy`, `medium` default, `hard`): `public/layout_<map>_<difficulty>.json`, built by
+`scripts/build_layout.py --type <map> --slack <n>`. `useMap(map, difficulty)` in
+`js/game/world.js` switches the world (`world.map` is the current one; `world.version` goes up).
+Tiles are kept by id across maps, so downloaded images are reused. A tile's index in
+`world.tiles` (layout order) drives `spawnPoint`, so every player must be on the same map.
+`public/layout.json` is no longer loaded by the game.
 
 **Inventory** (`js/inventory.js`): `add(tile)` (false if already there or full), `remove(id)`,
 `has(id)`, `reset()`, `items`, `size`, `full`, `onChange(fn) → unsubscribe`. Items are

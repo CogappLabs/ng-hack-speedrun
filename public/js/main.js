@@ -5,11 +5,11 @@
 // mount() draws into root (the #screen overlay); update(dt) runs every frame while it's active.
 // Screens move on with ctx.go(name, data). The 3D world renders behind every screen.
 import { renderer, scene, camera } from './scene.js';
-import { loadWorld, loadImages, updateTextures, spawnPoint, randomSeed, restoreTiles, challengeFor } from './game/world.js';
+import { useMap, loadImages, updateTextures, spawnPoint, randomSeed, restoreTiles, challengeFor } from './game/world.js';
 import { createCar, placeCar, syncCarModel } from './game/car.js';
 import { chase, updateCamera } from './game/camera.js';
 import { inventory } from './inventory.js';
-import { loadOptions, cleanOptions } from './options.js';
+import { loadOptions, cleanOptions, DEFAULT_OPTIONS } from './options.js';
 import landing from './screens/landing.js';
 import lobby from './screens/lobby.js';
 import play from './screens/play.js';
@@ -39,7 +39,8 @@ const ctx = {
   // tile and empty the inventory, ready for a new run.
   // In multiplayer, pass the player's slot (Player.slot) and the seed from the 'start' event
   // so every player gets a different tile and everyone agrees on where everyone starts,
-  // plus the room's options from the same event.
+  // plus the room's options from the same event. The map must already be the options' map
+  // (await useMap(options.map, options.difficulty) from game/world.js first).
   newRun(slot = 0, seed = randomSeed(), options = ctx.options) {
     restoreTiles();
     ctx.runOptions = cleanOptions(options);
@@ -63,7 +64,8 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
-await loadWorld();
+await useMap(ctx.options.map, ctx.options.difficulty)
+  .catch(() => useMap(DEFAULT_OPTIONS.map, DEFAULT_OPTIONS.difficulty));
 ctx.car = createCar();
 ctx.newRun();
 updateCamera(ctx.car, 0, true);

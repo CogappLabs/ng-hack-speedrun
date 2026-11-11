@@ -4,6 +4,7 @@
 import { createPartyNet, watchRooms } from '../net/partykit.js';
 import { cssColor, selfPlayer } from '../net/net.js';
 import { optionsLabel, cleanOptions } from '../options.js';
+import { useMap } from '../game/world.js';
 import { render, esc } from '../ui.js';
 
 const NAME_KEY = 'artdrive.name';
@@ -56,7 +57,9 @@ export default {
       $('.choose').hidden = true;
       $('.room').hidden = false;
       $('.room-title').textContent = room.title;
-      $('.room-options').textContent = optionsLabel(cleanOptions(room.options));
+      const options = cleanOptions(room.options);
+      $('.room-options').textContent = optionsLabel(options);
+      useMap(options.map, options.difficulty).catch(() => {});  // get the room's map ready
     };
     const start = promise => {
       saveName(name());
@@ -102,7 +105,19 @@ export default {
         $('.start').hidden = !host;
         $('.waiting').hidden = host;
       }),
-      net.on('start', ({ seed, options }) => { ctx.newRun(selfPlayer(net)?.slot ?? 0, seed, options); ctx.go('play'); }),
+      net.on('start', async ({ seed, options }) => {
+        // Everyone must be on the room's map before placing cars. It's usually loaded already.
+        const o = cleanOptions(options);
+        try {
+          await useMap(o.map, o.difficulty);
+        } catch (e) {
+          fail(e);
+          return;
+        }
+        if (ctx.session.net !== net) return;  // left the room while the map loaded
+        ctx.newRun(selfPlayer(net)?.slot ?? 0, seed, o);
+        ctx.go('play');
+      }),
       net.on('error', msg => fail(msg)),
     ];
   },

@@ -3,7 +3,7 @@
 //
 // data: {
 //   mode: 'single' | 'multi',
-//   options: { mode: 'time' | 'challenge', minutes },   see ../options.js
+//   options: { map, difficulty, mode: 'time' | 'challenge', minutes },   see ../options.js
 //   challenge: { label, name, tiles } | null,   e.g. { label: 'hat', name: 'hats' }
 //   endedBy: name of whoever filled their film first ('You' for us), or null,
 //   reason: 'full' (endedBy filled their film) | 'time' (the clock ran out)
@@ -14,7 +14,7 @@ import { render, esc } from '../ui.js';
 import { chase, normaliseOrbit } from '../game/camera.js';
 import { cssColor } from '../net/net.js';
 import { COLLECTION_SIZE } from '../config.js';
-import { cleanOptions, minutesText } from '../options.js';
+import { cleanOptions, minutesText, mapLabel } from '../options.js';
 
 let $;
 
@@ -66,7 +66,7 @@ export default {
 
     $ = render(root, `
       <div class="panel centre finish">
-        <p class="muted challenge">Challenge: ${task}</p>
+        <p class="muted challenge">Challenge: ${task} · ${esc(mapLabel(opts))}</p>
         <h2>${headline}</h2>
         <p class="muted">${why}</p>
         ${ranked.map(p => `

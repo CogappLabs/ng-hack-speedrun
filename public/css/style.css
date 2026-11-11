@@ -26,12 +26,18 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
 .landing .options { margin: 14px 0 4px; display: grid; gap: 8px; }
 .landing .option { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .landing .option[hidden] { display: none; }
-.landing .option-label { min-width: 40px; text-align: right; color: var(--muted); }
+.landing .option-label { min-width: 64px; text-align: right; color: var(--muted); }
 .landing .seg { display: inline-flex; border-radius: 6px; overflow: hidden; }
 .landing .seg button { border-radius: 0; padding: 6px 12px; }
 .landing .seg button + button { border-left: 1px solid #222; }
 .landing .seg button[aria-pressed="true"] { background: #fff; color: #111; }
 .landing .rules { margin: 2px 0 0; min-height: 2.6em; }
+.landing .map-info { margin: 2px 0 4px; }
+.landing .outline { display: block; margin: 0 auto 4px; max-width: 100%; height: auto !important;
+  aspect-ratio: 240 / 150; background: #0d0f13; border-radius: 4px; transition: opacity 0.2s; }
+.landing .map-info.loading .outline { opacity: 0.35; }
+.landing .map-info figcaption { min-height: 2.6em; }
+.landing { max-height: calc(100vh - 32px); overflow-y: auto; }
 
 /* --- Lobby (js/screens/lobby.js) --- */
 .lobby ul { list-style: none; padding: 0; margin: 8px 0; }

@@ -18,9 +18,11 @@ const HEARTBEAT_MS = 30_000;    // open rooms re-announce themselves this often.
 const STALE_MS = 75_000;        // ...and the directory drops rooms it hasn't heard from in this long
 const DIRECTORY = "all";        // the single RoomDirectory instance
 // Game options (public/js/options.js), chosen by whoever creates the room. Keep in step.
+const MAPS = ["visual", "curatorial", "clip"] as const;
+const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 const MODES = ["time", "challenge"] as const;
 const MINUTES = [1, 2, 3, 5, 10];
-const DEFAULT_OPTIONS: GameOptions = { mode: "time", minutes: 2 };
+const DEFAULT_OPTIONS: GameOptions = { map: "visual", difficulty: "medium", mode: "time", minutes: 2 };
 
 type Env = {
   GameRoom: DurableObjectNamespace<GameRoom>;
@@ -29,9 +31,15 @@ type Env = {
 
 type Player = { id: string; name: string; host: boolean; color: number; slot: number };
 
+// map + difficulty pick the layout every player loads (public/layout_<map>_<difficulty>.json).
 // time: the game ends after `minutes` (or once everyone's film is full).
 // challenge: the game ends when the first player fills their film.
-type GameOptions = { mode: (typeof MODES)[number]; minutes: number };
+type GameOptions = {
+  map: (typeof MAPS)[number];
+  difficulty: (typeof DIFFICULTIES)[number];
+  mode: (typeof MODES)[number];
+  minutes: number;
+};
 
 // Why a game ended: 'full' (player `id` filled their film first, challenge mode or single
 // player), 'time' (the clock ran out) or 'all-full' (time mode, everyone's film is full).
@@ -47,7 +55,12 @@ type ClientMessage =
 
 const clean = (s: unknown, max: number) => String(s ?? "").trim().replace(/\s+/g, " ").slice(0, max);
 
+const oneOf = <T extends string>(list: readonly T[], v: unknown, fallback: T): T =>
+  list.includes(v as T) ? (v as T) : fallback;
+
 const cleanOptions = (o: Partial<GameOptions> | undefined): GameOptions => ({
+  map: oneOf(MAPS, o?.map, DEFAULT_OPTIONS.map),
+  difficulty: oneOf(DIFFICULTIES, o?.difficulty, DEFAULT_OPTIONS.difficulty),
   mode: MODES.includes(o?.mode as GameOptions["mode"]) ? o!.mode! : DEFAULT_OPTIONS.mode,
   minutes: MINUTES.includes(o?.minutes as number) ? o!.minutes! : DEFAULT_OPTIONS.minutes,
 });

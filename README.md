@@ -41,7 +41,7 @@ automatically.
 ## Deployment
 
 Every push to `main` publishes `public/` to GitHub Pages, using
-`.github/workflows/pages.yml`. Commit `public/layout.json` after rebuilding it,
+`.github/workflows/pages.yml`. Commit the `public/layout_*.json` files after rebuilding them,
 because the workflow doesn't run the build script. You can also run the
 workflow by hand from the Actions tab.
 
@@ -115,8 +115,11 @@ dot for every player. Yours is the larger dot with an arrow pointing where you'r
 `input/vectors_2d.tsv` has one row per artwork: its object id (`uid`), an image URL
 (`image_mid_url`), the IIIF image URL (`image_iiif_url`, used to match subject labels) and
 several 2D projections (`clip_*`, `curatorial_*`, `visual_*`, `combined_*`).
-The layout uses `visual_x` / `visual_y`, which places artworks that look alike
-close together. Rows with no image or coordinates are skipped (14 of 2,412).
+The game has one map per projection (visual, curatorial, clip), each at three
+difficulties (easy, medium, hard): `public/layout_<map>_<difficulty>.json`, built with
+`--type <map>` and a larger `--slack` for harder (bigger, more spread-out) maps. Players
+pick the map on the first screen, with an outline of it; in multiplayer the room creator's
+map is used. `visual` places artworks that look alike close together. Rows with no image or coordinates are skipped (14 of 2,412).
 
 `input/filtered_subjects.tsv` lists the subjects found in each image (see
 "Subject labels" below).
