@@ -26,8 +26,10 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
 
 /* --- Lobby (js/screens/lobby.js) --- */
 .lobby ul { list-style: none; padding: 0; margin: 8px 0; }
-.lobby .code { font: 600 24px ui-monospace, monospace; letter-spacing: 4px; }
-.lobby .join-code { text-transform: uppercase; }
+.lobby h3 { margin: 16px 0 4px; font-size: 14px; }
+.lobby .rooms { max-height: 40vh; overflow-y: auto; display: grid; gap: 6px; }
+.lobby .room-btn { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.lobby .title { flex: 1; min-width: 0; }
 .lobby .error { color: #f88; min-height: 1em; }
 button:disabled { opacity: 0.5; cursor: default; }
 

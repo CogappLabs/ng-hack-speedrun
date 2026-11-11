@@ -1,16 +1,22 @@
 // Net implementation over PartyServer on Cloudflare Workers (see ./net.js for the interface,
-// /party/server.ts for the server). One room per game; the room id is the 4-character room code.
+// /party/server.ts for the server). Two kinds of connection:
 //
-// Client → server: { type: 'join', name, create } · { type: 'start' }
-//                  { type: 'state', x, y, heading, speed, steer } · { type: 'selected', tileId }
-// Server → client: { type: 'joined', selfId, code } · { type: 'players', players } · { type: 'start' }
-//                  { type: 'state', id, ...pose } · { type: 'selected', id, tileId } · { type: 'error', message }
+// Game room (/parties/game-room/<room id>), one per game:
+//   Client → server: { type: 'join', name, create, title? } · { type: 'start' }
+//                    { type: 'state', x, y, heading, speed, steer } · { type: 'selected', tileId }
+//   Server → client: { type: 'joined', selfId, room: { id, title } } · { type: 'players', players }
+//                    { type: 'start' } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
+//                    { type: 'error', message }
+//
+// Room directory (/parties/room-directory/all), listen only:
+//   Server → client: { type: 'rooms', rooms: [{ id, title, host, players, max }] }
 import PartySocket from 'partysocket';
 import { PARTY_HOST } from '../config.js';
 import { createEmitter, PLAYER_COLORS } from './net.js';
 
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';  // no 0/O or 1/I, so codes are easy to read out
-const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+// Room ids are internal (players pick rooms by title), so they just need to be unique.
+const newRoomId = () => crypto.randomUUID().slice(0, 8);
+const NO_SERVER = 'No multiplayer server is set up for this site yet.';
 
 /** @returns {import('./net.js').Net} */
 export function createPartyNet() {
@@ -19,16 +25,16 @@ export function createPartyNet() {
 
   const send = msg => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg)); };
 
-  function connect(code, name, create) {
-    if (!PARTY_HOST) return Promise.reject(new Error('No multiplayer server is set up for this site yet.'));
+  function connect(roomId, name, create, title) {
+    if (!PARTY_HOST) return Promise.reject(new Error(NO_SERVER));
     net.leave();
     return new Promise((resolve, reject) => {
       // No automatic reconnect: the server can't put a dropped player back into a started game.
-      const s = socket = new PartySocket({ host: PARTY_HOST, party: 'game-room', room: code, maxRetries: 0 });
+      const s = socket = new PartySocket({ host: PARTY_HOST, party: 'game-room', room: roomId, maxRetries: 0 });
       let joined = false;
       const close = () => { if (socket === s) socket = null; s.close(); };
 
-      s.addEventListener('open', () => s.send(JSON.stringify({ type: 'join', name, create })));
+      s.addEventListener('open', () => s.send(JSON.stringify({ type: 'join', name, create, title })));
       s.addEventListener('close', () => {
         if (socket !== s) return;  // we closed it on purpose
         socket = null;
@@ -42,7 +48,8 @@ export function createPartyNet() {
           case 'joined':
             joined = true;
             net.selfId = m.selfId;
-            resolve(m.code);
+            net.room = m.room;
+            resolve(m.room);
             break;
           case 'error':
             if (joined) emit('error', m.message);
@@ -70,10 +77,11 @@ export function createPartyNet() {
 
   const net = {
     selfId: null,
+    room: null,
     players: [],
     on,
-    createRoom: name => connect(newCode(), name, true),
-    joinRoom: (code, name) => connect(code.trim().toUpperCase(), name, false),
+    createRoom: (name, title) => connect(newRoomId(), name, true, title),
+    joinRoom: (roomId, name) => connect(roomId, name, false),
     startGame: () => send({ type: 'start' }),
     sendState: ({ x, y, heading, speed, steer }) => send({
       type: 'state', x: Math.round(x), y: Math.round(y),
@@ -83,8 +91,26 @@ export function createPartyNet() {
     leave() {
       if (socket) { const s = socket; socket = null; s.close(); }
       net.selfId = null;
+      net.room = null;
       net.players = [];
     },
   };
   return net;
+}
+
+// Watch the list of rooms that can still be joined. fn(rooms) is called with the full list each
+// time it changes, or fn(null) while not connected. Returns a function that stops watching.
+export function watchRooms(fn) {
+  if (!PARTY_HOST) {
+    fn(null);
+    return () => {};
+  }
+  const s = new PartySocket({ host: PARTY_HOST, party: 'room-directory', room: 'all' });
+  s.addEventListener('message', e => {
+    let m;
+    try { m = JSON.parse(e.data); } catch { return; }
+    if (m.type === 'rooms') fn(m.rooms);
+  });
+  s.addEventListener('close', () => fn(null));  // PartySocket reconnects by itself
+  return () => s.close();
 }

@@ -13,7 +13,10 @@ Static site in `public/`, deployed to GitHub Pages on every push to `main`.
   localhost:8787). Open two tabs to play against yourself.
 - The multiplayer server is PartyServer (`partyserver` package) on Cloudflare Workers + Durable
   Objects, not hosted PartyKit (shut down). Check its docs before changing `party/server.ts`,
-  and run `npm run typecheck` afterwards.
+  and run `npm run typecheck` afterwards. A new Durable Object class needs a binding *and* a new
+  migration entry (next `tag`) in `wrangler.jsonc`; never edit or remove existing migrations.
+- Deploy the server (`npm run party:deploy`) *before* pushing client changes that depend on
+  it, because every push to `main` goes live immediately.
 - Game logic uses 2D world coordinates (x east, y south). Three.js draws (x, y) at 3D (x, 0, y).
   One grid cell is `CELL` (256) units.
 - Escape artwork titles and other data with `esc()` from `js/ui.js` before putting them in `innerHTML`.
@@ -21,8 +24,8 @@ Static site in `public/`, deployed to GitHub Pages on every push to `main`.
 ## Structure
 
 ```
-party/server.ts          multiplayer server (GameRoom Durable Object): rooms, players, host, relays
-                         car poses + selections
+party/server.ts          multiplayer server: GameRoom (one per room: players, host, relays car poses +
+                         selections) and RoomDirectory (single instance listing open rooms)
 wrangler.jsonc           Cloudflare Worker config (deploy with `npm run party:deploy`)
 public/
   index.html             markup shell + import map
@@ -66,9 +69,10 @@ Change these only on purpose, and say so in the commit message, because other se
 **Finish screen data**: `ctx.go('finish', { items, mode, others })`, where `others` is
 `[{ name, color, items }]` for the other players in multiplayer (empty in single player).
 
-**Net** (`js/net/net.js`): `createRoom(name) → code`, `joinRoom(code, name)`, `startGame()`,
-`sendState(pose)`, `sendSelected(tileId)`, `on(event, fn) → unsubscribe`, `leave()`,
-`selfId`, `players`. Events: `players`, `start`, `state`, `selected`, `error`. Full types are
+**Net** (`js/net/net.js`): `createRoom(name, title?) → {id, title}`, `joinRoom(roomId, name)`,
+`startGame()`, `sendState(pose)`, `sendSelected(tileId)`, `on(event, fn) → unsubscribe`,
+`leave()`, `selfId`, `room`, `players`. The open-rooms list comes from
+`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start`, `state`, `selected`, `error`. Full types are
 in the file's header comment. The wire messages are listed in `js/net/partykit.js`; keep
 them in step with `party/server.ts`.
 

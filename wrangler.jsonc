@@ -5,9 +5,15 @@
   "name": "ng-hack-speedrun",
   "main": "party/server.ts",
   "compatibility_date": "2026-11-01",
-  // Each game room is one Durable Object instance of GameRoom.
+  // Each game room is one GameRoom instance; RoomDirectory is a single instance listing open rooms.
   "durable_objects": {
-    "bindings": [{ "name": "GameRoom", "class_name": "GameRoom" }]
+    "bindings": [
+      { "name": "GameRoom", "class_name": "GameRoom" },
+      { "name": "RoomDirectory", "class_name": "RoomDirectory" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["RoomDirectory"] }
+  ]
 }

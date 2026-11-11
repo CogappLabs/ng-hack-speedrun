@@ -7,10 +7,14 @@
 // @typedef {{ id: string, x: number, y: number, heading: number, speed: number, steer: number }} CarState
 //
 // @typedef {Object} Net
+// @typedef {{ id: string, title: string, host: string, players: number, max: number }} RoomInfo
+//   a room that can still be joined, as listed by watchRooms() in ./partykit.js
+//
 // @property {string|null} selfId                                      this player's id, once joined
+// @property {{ id: string, title: string }|null} room                 the room we're in, once joined
 // @property {Player[]} players                                        the latest player list
-// @property {(name: string) => Promise<string>} createRoom            resolves to the room code; caller is host
-// @property {(code: string, name: string) => Promise<string>} joinRoom
+// @property {(name: string, title?: string) => Promise<{id, title}>} createRoom   caller becomes host
+// @property {(roomId: string, name: string) => Promise<{id, title}>} joinRoom      roomId from RoomInfo.id
 // @property {() => void} startGame                                    host only; every player then gets 'start'
 // @property {(state: Omit<CarState, 'id'>) => void} sendState         local car pose, ~15 times a second
 // @property {(tileId: string) => void} sendSelected                   tell the others we selected an artwork

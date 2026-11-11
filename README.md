@@ -33,8 +33,8 @@ npm install          # once
 npm run party:dev    # multiplayer server on localhost:8787 (wrangler dev), alongside the game server above
 ```
 
-Open the game in two tabs. Choose Multiplayer, create a room in one tab, then join it from the
-other with the 4-character code. On localhost the game connects to the local server
+Open the game in two tabs and choose Multiplayer in both. Create a room in one tab; it
+appears in the other tab's list of open rooms, so click it to join. On localhost the game connects to the local server
 automatically.
 
 ## Deployment
@@ -148,10 +148,18 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
 
 ### Multiplayer (`party/server.ts`, `public/js/net/`)
 
-- **Rooms**: each game room is one instance of the `GameRoom` Durable Object, named by
-  its 4-character code. Clients connect over WebSocket to
-  `/parties/game-room/<CODE>` (PartyServer's `routePartykitRequest` does the routing).
-- **Players**: the first player in a room is the host. If the host leaves, the next player
+- **Rooms**: each game room is one instance of the `GameRoom` Durable Object, named by a
+  random id. The host gives the room a title (default "<name>'s room"). Clients connect
+  over WebSocket to `/parties/game-room/<id>` (PartyServer's `routePartykitRequest` does
+  the routing).
+- **Open rooms list**: a single `RoomDirectory` Durable Object lists the rooms that can still
+  be joined. Each `GameRoom` reports to it over Durable Object RPC whenever its players change,
+  and removes itself when the host starts or the last player leaves. The lobby screen
+  watches `/parties/room-directory/all` and redraws the list as it changes. Open rooms
+  re-announce themselves every 30 seconds, and the directory drops any room it hasn't
+  heard from in 75 seconds. That cleans up rooms whose server stopped without saying so,
+  e.g. during a redeploy.
+- **Players**: the first player in a room is the host, and only the host can start the game. If the host leaves, the next player
   takes over. Each player gets a colour and a starting slot (up to 6 players).
 - **During a game**: each browser sends its car's position about 15 times a second, and
   the server relays it to the others, who smooth it out. Selections are relayed the same way.
