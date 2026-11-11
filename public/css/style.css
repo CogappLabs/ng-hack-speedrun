@@ -27,10 +27,14 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
 /* --- Lobby (js/screens/lobby.js) --- */
 .lobby ul { list-style: none; padding: 0; margin: 8px 0; }
 .lobby .code { font: 600 24px ui-monospace, monospace; letter-spacing: 4px; }
+.lobby .join-code { text-transform: uppercase; }
+.lobby .error { color: #f88; min-height: 1em; }
+button:disabled { opacity: 0.5; cursor: default; }
 
 /* --- Play (js/screens/play.js) --- */
 .hud { position: absolute; top: 8px; left: 8px; padding: 6px 10px; border-radius: 4px; pointer-events: none; }
 .hud button { pointer-events: auto; margin-top: 6px; padding: 4px 10px; }
+.hud .net-error { color: #f88; }
 .tip { position: fixed; background: #000c; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; max-width: 320px; }
 
 /* --- Finish (js/screens/finish.js) --- */
@@ -38,4 +42,5 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
 .finish .works { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; text-align: left; }
 .finish figure { margin: 0; }
 .finish img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block; }
+.finish h3 { margin: 16px 0 0; text-align: left; }
 .finish figcaption { font-size: 12px; margin-top: 4px; }

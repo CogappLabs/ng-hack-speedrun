@@ -5,7 +5,7 @@
 // mount() draws into root (the #screen overlay); update(dt) runs every frame while it's active.
 // Screens move on with ctx.go(name, data). The 3D world renders behind every screen.
 import { renderer, scene, camera } from './scene.js';
-import { world, loadWorld, loadImages, updateTextures, tileCentre } from './game/world.js';
+import { loadWorld, loadImages, updateTextures, spawnPoint } from './game/world.js';
 import { createCar, placeCar, syncCarModel } from './game/car.js';
 import { chase, updateCamera } from './game/camera.js';
 import { inventory } from './inventory.js';
@@ -21,7 +21,7 @@ let current = null;
 // Shared state passed to every screen.
 const ctx = {
   car: null,                                  // the local player's car (also the camera's target)
-  session: { mode: 'single', net: null },     // mode: 'single' | 'multi'; net: a Net from net/net.js
+  session: { mode: 'single', net: null },     // mode: 'single' | 'multi'; net: a Net (net/net.js) in multiplayer
   inventory,
 
   go(name, data = {}) {
@@ -32,8 +32,9 @@ const ctx = {
   },
 
   // Put the car back at the start and empty the inventory, ready for a new run.
-  newRun() {
-    const s = tileCentre(world.start);
+  // slot is the player's starting position in multiplayer (Player.slot); 0 in single player.
+  newRun(slot = 0) {
+    const s = spawnPoint(slot);
     placeCar(ctx.car, s.x, s.y);
     chase.yaw = ctx.car.heading;
     inventory.reset();

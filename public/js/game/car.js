@@ -28,6 +28,10 @@ export function removeCar(car) {
   scene.remove(car.model.group);
 }
 
+export function setCarColor(car, color) {
+  car.model.paint.color.setHex(color);
+}
+
 export function placeCar(car, x, y, heading = -Math.PI / 2) {
   Object.assign(car, { x, y, heading, speed: 0, steer: 0 });
 }
@@ -123,5 +127,34 @@ function buildModel(color) {
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(L * 1.4, W * 1.6).rotateX(-Math.PI / 2), shadowMat);
   shadow.position.y = 1;
   group.add(shadow);
-  return { group, body, wheels };
+  return { group, body, wheels, paint };
+}
+
+// A floating name tag above the car (used for other players in multiplayer).
+export function setCarLabel(car, text) {
+  if (car.label) {
+    car.model.group.remove(car.label);
+    car.label.material.map.dispose();
+    car.label.material.dispose();
+  }
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d');
+  const font = '600 40px system-ui, sans-serif';
+  g.font = font;
+  c.width = Math.ceil(g.measureText(text).width) + 32;
+  c.height = 60;
+  g.font = font;
+  g.fillStyle = 'rgba(0,0,0,0.6)';
+  g.beginPath(); g.roundRect(0, 0, c.width, c.height, 14); g.fill();
+  g.fillStyle = '#fff';
+  g.textBaseline = 'middle';
+  g.fillText(text, 16, c.height / 2 + 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  label.scale.set(c.width * 0.9, c.height * 0.9, 1);
+  label.position.y = 110;
+  label.renderOrder = 1;
+  car.model.group.add(label);
+  car.label = label;
 }

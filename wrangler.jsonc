@@ -1,0 +1,13 @@
+// Cloudflare Worker for Art Drive multiplayer. `npm run party:dev` runs it locally on
+// localhost:8787; `npm run party:deploy` publishes it to <name>.<your-subdomain>.workers.dev.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ng-hack-speedrun",
+  "main": "party/server.ts",
+  "compatibility_date": "2026-11-01",
+  // Each game room is one Durable Object instance of GameRoom.
+  "durable_objects": {
+    "bindings": [{ "name": "GameRoom", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+}

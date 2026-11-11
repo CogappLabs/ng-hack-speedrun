@@ -10,11 +10,19 @@ const TEX_PER_FRAME = 8;   // texture uploads allowed per frame (keeps frame tim
 const TEX_MAX_PX = 512;    // longest side of an uploaded texture
 
 // tiles: [{id, acc, title, url, col, row, mesh, img?}]. start: the tile nearest the centre.
-export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), start: null };
+export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map(), start: null };
 export const progress = { loaded: 0, total: 0, done: false };
 
 export const tileAt = (x, y) => world.byCell.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
 export const tileCentre = t => ({ x: (t.col + 0.5) * CELL, y: (t.row + 0.5) * CELL });
+
+// Where a player starts: side by side on the start tile, facing north. Slot 0 is the centre,
+// then 1 to the right, 2 to the left, 3 further right, and so on.
+export function spawnPoint(slot = 0) {
+  const c = tileCentre(world.start);
+  const side = slot % 2 ? 1 : -1;
+  return { x: c.x + side * Math.ceil(slot / 2) * 80, y: c.y };
+}
 
 const tileGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const placeholderMat = new THREE.MeshBasicMaterial({ color: 0x3a3a3a });
@@ -25,7 +33,10 @@ export async function loadWorld(url = 'layout.json') {
   world.cols = layout.cols;
   world.rows = layout.rows;
   world.tiles = layout.tiles;
-  for (const t of world.tiles) world.byCell.set(t.col + ',' + t.row, t);
+  for (const t of world.tiles) {
+    world.byCell.set(t.col + ',' + t.row, t);
+    world.byId.set(t.id, t);
+  }
   progress.total = world.tiles.length;
 
   const mc = world.tiles.reduce((s, t) => s + t.col, 0) / world.tiles.length;
