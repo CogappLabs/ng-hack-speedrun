@@ -86,6 +86,9 @@ tiles = [
         "acc": rows[i]["accession_number"],
         "title": rows[i]["title"],
         "url": rows[i]["image_mid_url"],
+        "iiif": rows[i]["image_iiif_url"],
+        # HTML (a link to the artist's page): don't put it in innerHTML unescaped.
+        "attribution": rows[i]["attribution"],
         "col": int(cells[c][0]),
         "row": int(cells[c][1]),
     }
