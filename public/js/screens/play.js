@@ -15,14 +15,14 @@
 import { stepCar, createCar, removeCar, placeCar, syncCarModel, setCarLabel, setCarColor } from '../game/car.js';
 import { chase, groundPointAt, isDragging } from '../game/camera.js';
 import { driveInput, lookInput, isDriveKey, padConnected, setDrivingEnabled, onKey, onKeyUp } from '../game/input.js';
-import { tileAt, progress, spawnPoint, world, removeTile, tileMatches } from '../game/world.js';
+import { tileAt, progress, spawnPoint, world, removeTile, tileMatches, tileCentre } from '../game/world.js';
 import { createMinimap } from '../game/minimap.js';
 import { createPreview } from '../hud/preview.js';
 import { createFilmstrip } from '../hud/filmstrip.js';
 import { COLLECTION_SIZE } from '../config.js';
 import { cssColor, selfPlayer, PLAYER_COLORS } from '../net/net.js';
 import { minutesText } from '../options.js';
-import { sfx, engine } from '../sound.js';
+import { sfx, engine, listen, createRemoteEngine } from '../sound.js';
 import { canvas } from '../scene.js';
 import { render, esc } from '../ui.js';
 
@@ -41,7 +41,7 @@ let wasBoosting = false;   // for the boost sounds
 let lastTick = null;       // the countdown second we last ticked for        // the clock turns red for the last few seconds
 
 let $, ctx, net, off = [], minimap, preview, filmstrip;
-let remotes = new Map();   // player id → { player, car, target, picks: tileId[] }
+let remotes = new Map();   // player id → { player, car, target, picks: tileId[], voice } (voice: their engine sound)
 let departed = [];         // players who left mid-game: { player, picks }, kept for the results
 let sendTimer = 0, idleTimer = 0, lastSent = '';
 let pending = new Set();   // tile ids we've asked the server for and are waiting to hear about
@@ -194,8 +194,8 @@ function onSelected({ id, tileId }) {
     return;
   }
   removeTile(t);
-  sfx.remoteShutter();
   const r = remotes.get(id);
+  sfx.remoteShutter(r ? { x: r.car.x, y: r.car.y } : tileCentre(t));  // heard from where they are
   if (r && !r.picks.includes(tileId)) {
     r.picks.push(tileId);
     showScores();
@@ -219,7 +219,7 @@ function syncPlayers(players) {
       const car = createCar({ color: p.color });
       const s = spawnPoint(net.seed, p.slot);
       placeCar(car, s.x, s.y, s.heading);
-      r = { player: p, car, target: null, picks: [] };
+      r = { player: p, car, target: null, picks: [], voice: createRemoteEngine() };
       remotes.set(p.id, r);
     }
     if (r.player.name !== p.name || !r.car.label) setCarLabel(r.car, p.name);
@@ -228,6 +228,7 @@ function syncPlayers(players) {
   for (const [id, r] of remotes) {
     if (!players.some(p => p.id === id)) {
       removeCar(r.car);
+      r.voice.dispose();
       remotes.delete(id);
       if (r.picks.length) departed.push({ player: r.player, picks: r.picks });
     }
@@ -252,7 +253,7 @@ function showScores() {
 
 function updateRemotes(dt) {
   const k = 1 - Math.exp(-dt * SMOOTHING);
-  for (const { car, target } of remotes.values()) {
+  for (const { car, target, voice } of remotes.values()) {
     if (target) {
       car.x += (target.x - car.x) * k;
       car.y += (target.y - car.y) * k;
@@ -262,6 +263,7 @@ function updateRemotes(dt) {
       car.steer = target.steer;
     }
     syncCarModel(car, dt);
+    voice.update(car);
   }
 }
 
@@ -377,6 +379,7 @@ export default {
     stepCar(ctx.car, driveInput(), dt);  // input is off once the game ends, so the car coasts to a stop
     tickClock();
     showBoost();
+    listen(ctx.car.x, ctx.car.y);
     engine.update(ctx.car);
     if (ctx.car.boosting && !wasBoosting) sfx.boost();
     if (!ctx.car.boosting && wasBoosting && ctx.car.boost <= 0) sfx.boostEmpty();
@@ -411,7 +414,10 @@ export default {
     engine.stop();
     off.forEach(f => f());
     off = [];
-    for (const r of remotes.values()) removeCar(r.car);
+    for (const r of remotes.values()) {
+      removeCar(r.car);
+      r.voice.dispose();
+    }
     remotes = new Map();
     ctx.car.speed = 0;
     ctx.car.steer = 0;
