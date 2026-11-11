@@ -222,11 +222,30 @@ export class GameRoom extends Server<Env> {
   }
 }
 
+// The list is kept in Durable Object storage as well as in memory: with no lobby connected the
+// directory can be unloaded at any time, and without storage it would forget every open room
+// until each one's next heartbeat.
+const ROOM_KEY = "room:";
+
 export class RoomDirectory extends Server<Env> {
   rooms = new Map<string, RoomInfo & { seen: number }>();
+  loading: Promise<void> | null = null;
 
-  onConnect(conn: Connection) {
-    this.prune();
+  // Load the saved list once per start. getServerByName() and incoming connections wait for
+  // onStart(); the alarm handler calls load() itself in case it runs first after a restart.
+  load() {
+    this.loading ??= this.ctx.storage.list<RoomInfo & { seen: number }>({ prefix: ROOM_KEY }).then(saved => {
+      for (const r of saved.values()) this.rooms.set(r.id, r);
+    });
+    return this.loading;
+  }
+
+  async onStart() {
+    await this.load();
+  }
+
+  async onConnect(conn: Connection) {
+    await this.prune();
     conn.send(this.listMessage());
   }
 
@@ -235,29 +254,39 @@ export class RoomDirectory extends Server<Env> {
 
   // --- RPC, called by GameRoom ---
   async setRoom(info: RoomInfo) {
-    this.rooms.set(info.id, { ...info, seen: Date.now() });
+    await this.load();
+    const room = { ...info, seen: Date.now() };
+    this.rooms.set(info.id, room);
+    await this.ctx.storage.put(ROOM_KEY + info.id, room);
     await this.changed();
   }
 
   async removeRoom(id: string) {
-    if (this.rooms.delete(id)) await this.changed();
+    await this.load();
+    if (!this.rooms.delete(id)) return;
+    await this.ctx.storage.delete(ROOM_KEY + id);
+    await this.changed();
   }
 
   // Drop rooms whose heartbeats stopped (e.g. the room's server restarted mid-game).
   async onAlarm() {
-    if (this.prune()) this.broadcast(this.listMessage());
+    await this.load();
+    if (await this.prune()) this.broadcast(this.listMessage());
     await this.scheduleCheck();
   }
 
-  prune() {
+  // Forget stale rooms. Returns whether any were removed.
+  async prune() {
     const cutoff = Date.now() - STALE_MS;
-    let removed = false;
-    for (const [id, r] of this.rooms) if (r.seen < cutoff) { this.rooms.delete(id); removed = true; }
-    return removed;
+    const stale = [...this.rooms.values()].filter(r => r.seen < cutoff).map(r => r.id);
+    if (!stale.length) return false;
+    for (const id of stale) this.rooms.delete(id);
+    await this.ctx.storage.delete(stale.map(id => ROOM_KEY + id));
+    return true;
   }
 
   async changed() {
-    this.prune();
+    await this.prune();
     this.broadcast(this.listMessage());
     await this.scheduleCheck();
   }
