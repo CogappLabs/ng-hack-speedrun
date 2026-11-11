@@ -9,12 +9,37 @@ const TEX_KEEP = 28;       // cells: textures further than this are freed
 const TEX_PER_FRAME = 8;   // texture uploads allowed per frame (keeps frame times smooth)
 const TEX_MAX_PX = 512;    // longest side of an uploaded texture
 
-// tiles: [{id, acc, title, url, col, row, mesh, img?, avg?}]. avg is the image's average
-// colour as a CSS string, once loaded (used by the locator map).
-export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map() };
+// tiles: [{id, acc, title, url, col, row, mesh, img?, avg?, removed?}]. avg is the image's average
+// colour as a CSS string, once loaded (used by the locator map). removed is set once the artwork
+// has been collected this run. version goes up whenever tiles are removed or restored.
+export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map(), version: 0 };
 export const progress = { loaded: 0, total: 0, done: false };
 
-export const tileAt = (x, y) => world.byCell.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
+// The tile at a world position, or undefined for a gap (including a collected artwork's cell).
+export function tileAt(x, y) {
+  const t = world.byCell.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
+  return t && !t.removed ? t : undefined;
+}
+
+// Take a collected artwork off the map: it leaves a gap until the next run.
+export function removeTile(t) {
+  if (t.removed) return;
+  t.removed = true;
+  t.mesh.visible = false;
+  world.version++;
+}
+
+// Put every collected artwork back, ready for a new run.
+export function restoreTiles() {
+  let changed = false;
+  for (const t of world.tiles) {
+    if (!t.removed) continue;
+    t.removed = false;
+    t.mesh.visible = true;
+    changed = true;
+  }
+  if (changed) world.version++;
+}
 export const tileCentre = t => ({ x: (t.col + 0.5) * CELL, y: (t.row + 0.5) * CELL });
 
 // Where a player starts: a random tile and heading picked from `seed`, with each slot on a
@@ -142,11 +167,11 @@ export function updateTextures(x, y) {
   for (const t of world.tiles) {
     if (!t.img) continue;
     const d = Math.hypot(t.col + 0.5 - cc, t.row + 0.5 - cr);
-    if (t.tex && d > TEX_KEEP) {
+    if (t.tex && (d > TEX_KEEP || t.removed)) {
       t.mesh.material = placeholderMat;
       t.mat.dispose(); t.tex.dispose();
       t.tex = t.mat = null;
-    } else if (!t.tex && d < TEX_RADIUS) want.push([d, t]);
+    } else if (!t.tex && !t.removed && d < TEX_RADIUS) want.push([d, t]);
   }
   want.sort((a, b) => a[0] - b[0]);
   for (const [, t] of want) {

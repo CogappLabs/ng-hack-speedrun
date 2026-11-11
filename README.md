@@ -73,16 +73,24 @@ push. To try the live game against another server without changing the code, add
 | Scroll wheel | Move the camera closer to or further from the car |
 | Drag | Swing the camera around the car (press any arrow key to swing it back) |
 | Hover | Show the artwork's title |
-| Space | Select the artwork under the car (placeholder mechanic) |
+| Space | Collect the artwork under the car (up to 10) |
 | Esc | Finish the run and see your selections |
 
 Each run starts on a random tile, facing a random direction. In multiplayer, every player
 starts somewhere different. The host starts the game for everyone. Other players' cars show
-their names, and the HUD shows your selection count plus the top 4 other players (with
-"+ N more" for the rest). The final screen shows what the others had selected when you finished.
+their names, and the HUD shows your collection count plus the top 4 other players (with
+"+ N more" for the rest). The final screen shows what the others had collected when you finished.
 
-The HUD (top left) shows the artwork under the car, or "Off-road" when you're in a gap.
-The locator map (top right) shows the whole grid, each artwork in its average colour, with a
+On screen:
+
+- **Top centre**: a preview of the artwork under the car, with its title. It's hidden when
+  you're in a gap.
+- **Bottom**: a film strip with 10 frames. Press Space and the artwork flies from the preview
+  into the next empty frame. It then disappears from the map (for every player in
+  multiplayer), leaving a gap until the next run. Once all 10 frames are full you can't
+  collect any more.
+- **Top left**: collection count, scoreboard, controls and the Finish button.
+- **Top right**: the locator map (top right) shows the whole grid, each artwork in its average colour, with a
 dot for every player. Yours is the larger dot with an arrow pointing where you're heading.
 
 ## How it works
@@ -172,8 +180,13 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
   takes over. Each player gets a slot (0–9), which sets their colour and starting tile.
   Rooms hold up to 10 players (`MAX_PLAYERS` in `party/server.ts`).
 - **During a game**: each browser sends its car's position about 15 times a second, and
-  the server relays it to the others, who smooth it out. Selections are relayed the same way.
-  The server keeps no game state beyond the player list, so nothing is stored. With 10
+  the server relays it to the others, who smooth it out.
+- **Collecting**: Space sends a claim for the artwork to the server. The first claim on each
+  artwork wins (others are ignored, as are claims beyond 10 per player). The server then tells
+  every player, including the collector, so the artwork vanishes from every map at the same
+  moment. The collector's film strip animation starts when the confirmation arrives.
+- The server keeps no game state beyond the player list and this game's collected artworks, so
+  nothing is stored. With 10
   players that's about 150 messages in and 1,350 out per second per room, which is light
   for one Durable Object.
 - **Colours**: `PLAYER_COLORS` in `public/js/net/net.js` spreads 10 hues evenly round the
@@ -186,6 +199,6 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
 - Gaps: falling off the edge of a tile, and a jump button to cross between islands.
 - Decide whether the drivable surface is the whole cell or only the visible image
   (wide or tall paintings leave empty margins inside their cell).
-- Gathering artworks: the "dash to gather" game goal.
+- Gathering artworks: a goal or time limit for the "dash to gather" game.
 - Multiplayer: let players join a game that has already started, and reconnect after
   a dropped connection. Neither works yet.

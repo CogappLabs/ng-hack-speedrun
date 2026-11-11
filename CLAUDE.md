@@ -34,13 +34,15 @@ public/
   js/config.js           shared constants
   js/scene.js            the one renderer / scene / camera
   js/ui.js               DOM helpers (render, esc)
-  js/inventory.js        the local player's selected artworks
+  js/inventory.js        the local player's collected artworks (at most COLLECTION_SIZE)
   js/net/net.js          multiplayer Net interface, player colours, emitter
   js/net/partykit.js     Net implementation over partysocket (client side of party/server.ts)
   js/game/world.js       layout, tiles, image loading, textures
   js/game/car.js         car physics (stepCar) + 3D model; createCar() per player
   js/game/camera.js      chase camera, drag/scroll, groundPointAt()
   js/game/minimap.js     locator map (top right of the play screen)
+  js/hud/preview.js      artwork preview (top centre of the play screen)
+  js/hud/filmstrip.js    film strip of collected artworks (bottom), with the fly-in animation
   js/game/input.js       keyboard; driveInput(), onKey()
   js/screens/landing.js  feature 1
   js/screens/lobby.js    feature 2
@@ -62,20 +64,28 @@ Change these only on purpose, and say so in the commit message, because other se
 - `ctx.car`: the local player's car (the camera follows it)
 - `ctx.session`: `{ mode: 'single' | 'multi', net: Net | null }`
 - `ctx.inventory`: see below
-- `ctx.newRun(slot = 0, seed = random)`: put the car on its random starting tile and empty the
-  inventory. In multiplayer pass `Player.slot` and the seed from the `start` event, so all
+- `ctx.newRun(slot = 0, seed = random)`: put collected artworks back on the map, put the car on
+  its random starting tile and empty the inventory. In multiplayer pass `Player.slot` and the seed from the `start` event, so all
   players agree where everyone starts (`spawnPoint(seed, slot)` in `js/game/world.js`).
 
-**Inventory** (`js/inventory.js`): `add(tile)`, `remove(id)`, `has(id)`, `reset()`, `items`,
-`size`, `onChange(fn) → unsubscribe`. Items are `{ id, acc, title, url, pickedAt }`.
+**Inventory** (`js/inventory.js`): `add(tile)` (false if already there or full), `remove(id)`,
+`has(id)`, `reset()`, `items`, `size`, `full`, `onChange(fn) → unsubscribe`. Items are
+`{ id, acc, title, url, pickedAt }`. The cap is `COLLECTION_SIZE` in `js/config.js` (10), which
+must match `MAX_PICKS` in `party/server.ts`.
+
+**Collected artworks leave the map**: `removeTile(tile)` and `restoreTiles()` in
+`js/game/world.js`. `tileAt()` treats a removed tile as a gap, and the locator map redraws
+when `world.version` changes. In multiplayer, only remove a tile (or add it to the inventory)
+when the server's `selected` event arrives, never on the key press.
 
 **Finish screen data**: `ctx.go('finish', { items, mode, others })`, where `others` is
 `[{ name, color, items }]` for the other players in multiplayer (empty in single player).
 
 **Net** (`js/net/net.js`): `createRoom(name, title?) → {id, title}`, `joinRoom(roomId, name)`,
-`startGame()`, `sendState(pose)`, `sendSelected(tileId)`, `on(event, fn) → unsubscribe`,
+`startGame()`, `sendState(pose)`, `selectTile(tileId)`, `on(event, fn) → unsubscribe`,
 `leave()`, `selfId`, `room`, `seed`, `players`. The open-rooms list comes from
-`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start` (`{ seed }`), `state`, `selected`, `error`. Full types are
+`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start` (`{ seed }`), `state`, `selected` (`{ id, tileId }`, sent to
+everyone including the collector, first claim only), `error`. Full types are
 in the file's header comment. The wire messages are listed in `js/net/partykit.js`; keep
 them in step with `party/server.ts`.
 
@@ -92,7 +102,7 @@ the page is on localhost, otherwise `DEPLOYED_PARTY_HOST`
 |---|---|---|
 | 1. Landing page | `screens/landing.js`, landing CSS section | everything else |
 | 2. Waiting room + networking | `screens/lobby.js`, `net/`, `party/` | `play.js` (agree changes to the Net events) |
-| 3. Gameplay, multiplayer driving, selection, inventory display | `screens/play.js`, `game/*`, `inventory.js` | other screens |
+| 3. Gameplay, multiplayer driving, selection, inventory display | `screens/play.js`, `game/*`, `hud/*`, `inventory.js` | other screens |
 | 4. Final screen | `screens/finish.js`, finish CSS section | everything else |
 
 Shared files (`main.js`, `ui.js`, `config.js`, the top of `style.css`): keep changes small and

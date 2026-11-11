@@ -23,16 +23,18 @@ export function createMinimap() {
   base.width = canvas.width;
   base.height = canvas.height;
   const bg = base.getContext('2d');
-  let baseLoaded = -1, baseAt = 0;
+  let baseLoaded = -1, baseAt = 0, baseVersion = -1;
 
   function drawBase() {
     bg.setTransform(dpr, 0, 0, dpr, 0, 0);
     bg.clearRect(0, 0, w, h);
     for (const t of world.tiles) {
+      if (t.removed) continue;
       bg.fillStyle = t.avg ?? '#555';
       bg.fillRect(MARGIN + t.col * PX, MARGIN + t.row * PX, PX, PX);
     }
     baseLoaded = progress.loaded;
+    baseVersion = world.version;
     baseAt = performance.now();
   }
 
@@ -52,7 +54,8 @@ export function createMinimap() {
     // players: [{ x, y, heading, color, self }] in world units; color is a hex number.
     draw(players) {
       const now = performance.now();
-      if (progress.loaded !== baseLoaded && (progress.done || now - baseAt > REBUILD_MS)) drawBase();
+      if (world.version !== baseVersion ||
+          (progress.loaded !== baseLoaded && (progress.done || now - baseAt > REBUILD_MS))) drawBase();
 
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.clearRect(0, 0, canvas.width, canvas.height);

@@ -1,6 +1,8 @@
-// The artworks the local player has selected during the current run.
+// The artworks the local player has collected during the current run (at most COLLECTION_SIZE).
 // The play screen adds to it; the finish screen reads it. Items are plain objects:
 //   { id, acc, title, url, pickedAt }   (pickedAt = ms since the run started)
+
+import { COLLECTION_SIZE } from './config.js';
 
 const items = [];
 const listeners = new Set();
@@ -11,11 +13,12 @@ const notify = () => { for (const fn of listeners) fn(inventory.items); };
 export const inventory = {
   get items() { return items.slice(); },
   get size() { return items.length; },
+  get full() { return items.length >= COLLECTION_SIZE; },
   has: id => items.some(i => i.id === id),
 
-  // Add a world tile. Returns false if it was already selected.
+  // Add a world tile. Returns false if it was already collected or the collection is full.
   add(tile) {
-    if (inventory.has(tile.id)) return false;
+    if (inventory.full || inventory.has(tile.id)) return false;
     items.push({ id: tile.id, acc: tile.acc, title: tile.title, url: tile.url, pickedAt: performance.now() - runStart });
     notify();
     return true;

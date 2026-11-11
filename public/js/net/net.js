@@ -18,7 +18,7 @@
 // @property {(roomId: string, name: string) => Promise<{id, title}>} joinRoom      roomId from RoomInfo.id
 // @property {() => void} startGame                                    host only; every player then gets 'start'
 // @property {(state: Omit<CarState, 'id'>) => void} sendState         local car pose, ~15 times a second
-// @property {(tileId: string) => void} sendSelected                   tell the others we selected an artwork
+// @property {(tileId: string) => void} selectTile                     ask to collect an artwork; wait for 'selected'
 // @property {(event: string, fn: Function) => () => void} on          returns an unsubscribe function
 // @property {() => void} leave
 //
@@ -26,7 +26,9 @@
 //   'players'  (players: Player[])      the room's player list changed (join, leave, new host)
 //   'start'    ({ seed })                the host started the game; pass seed to ctx.newRun()
 //   'state'    (state: CarState)         another player's car moved
-//   'selected' ({ id, tileId })         another player selected an artwork
+//   'selected' ({ id, tileId })         a player (possibly us) collected an artwork. The server only
+//                                        confirms the first claim on each tile, so this is the moment
+//                                        to add it to the inventory (if id is ours) and remove it from the map
 //   'error'    (message: string)         e.g. lost connection to the server
 
 // One colour per player slot: hues spread evenly round the colour wheel, starting at the

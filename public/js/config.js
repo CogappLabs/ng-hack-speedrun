@@ -4,6 +4,7 @@ export const CELL = 256;            // world units per grid cell
 export const PAD = 8;               // gap inside each cell so tiles never touch
 export const INNER = CELL - PAD * 2;
 export const SKY = 0x1b1f27;
+export const COLLECTION_SIZE = 10;   // artworks each player can collect (frames in the film strip)
 
 // Multiplayer server (PartyServer on Cloudflare Workers, see party/server.ts). `npm run party:dev`
 // serves it on localhost:8787. After `npm run party:deploy`, put the workers.dev host it prints

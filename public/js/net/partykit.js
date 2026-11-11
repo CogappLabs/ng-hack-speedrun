@@ -3,7 +3,7 @@
 //
 // Game room (/parties/game-room/<room id>), one per game:
 //   Client → server: { type: 'join', name, create, title? } · { type: 'start' }
-//                    { type: 'state', x, y, heading, speed, steer } · { type: 'selected', tileId }
+//                    { type: 'state', x, y, heading, speed, steer } · { type: 'select', tileId }
 //   Server → client: { type: 'joined', selfId, room: { id, title } } · { type: 'players', players }
 //                    { type: 'start', seed } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
 //                    { type: 'error', message }
@@ -89,7 +89,7 @@ export function createPartyNet() {
       type: 'state', x: Math.round(x), y: Math.round(y),
       heading: +heading.toFixed(3), speed: Math.round(speed), steer,
     }),
-    sendSelected: tileId => send({ type: 'selected', tileId }),
+    selectTile: tileId => send({ type: 'select', tileId }),
     leave() {
       if (socket) { const s = socket; socket = null; s.close(); }
       net.selfId = null;
