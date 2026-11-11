@@ -47,6 +47,9 @@ const attribution = p => {
   return html ? `<div class="attribution">${html}</div>` : '';
 };
 
+// The artwork's page on the National Gallery website, by accession number (e.g. NG6475).
+const paintingUrl = acc => `https://www.nationalgallery.org.uk/paintings/${encodeURIComponent(acc)}`;
+
 const photoGrid = photos => `
   <div class="works">
     ${photos.map(p => `
@@ -56,7 +59,7 @@ const photoGrid = photos => `
           ${p.match ? '<span class="tick" aria-label="Matches the challenge">✓</span>' : ''}
         </div>
         <figcaption>
-          ${esc(p.title)} <span class="muted">(${esc(p.acc)})</span>
+          ${p.acc ? `<a class="title" href="${esc(paintingUrl(p.acc))}" target="_blank" rel="noopener noreferrer">${esc(p.title)}</a>` : esc(p.title)}
           ${attribution(p)}
         </figcaption>
       </figure>`).join('')}
