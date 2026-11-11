@@ -66,17 +66,22 @@ push. To try the live game against another server without changing the code, add
 
 ## Controls
 
-| Input | Action |
-|---|---|
-| ↑ | Accelerate |
-| ↓ | Brake, then reverse |
-| ← / → | Steer (only works while moving) |
-| Scroll wheel | Move the camera closer to or further from the car |
-| Drag | Swing the camera around the car (press any arrow key to swing it back) |
-| Hover | Show the artwork's title |
-| Space | Photograph the artwork under the car (10 photos per game) |
-| Z (hold) | Enlarge the painting preview to fill the screen; let go to shrink it back |
-| Esc | Quit the game and see your results so far |
+| Keyboard | Controller (Xbox layout) | Action |
+|---|---|---|
+| ↑ or W | RT (or D-pad ↑) | Accelerate (the triggers are analogue) |
+| ↓ or S | LT (or D-pad ↓) | Brake, then reverse |
+| ← / → or A / D | Left stick (or D-pad) | Steer (only works while moving) |
+| B (hold) | B (hold) | Boost: about 2.5× top speed for crossing the map. The gauge empties in 3 seconds and refills in 6 |
+| Scroll wheel | | Move the camera closer to or further from the car |
+| Drag | Right stick | Swing the camera around the car (drive to swing it back; the stick swings back when let go) |
+| Hover | | Show the artwork's title |
+| Space | A | Photograph the artwork under the car (10 photos per game) |
+| Z (hold) | Y (hold) | Enlarge the painting preview to fill the screen; let go to shrink it back |
+| Esc | Menu | Quit the game and see your results so far |
+
+WASD is matched by key position, so it's ZQSD on an AZERTY keyboard. Any controller with the
+browser's "standard" mapping works; browsers only reveal it after a button is pressed on the page.
+The menus still need a mouse.
 
 ### How a game works
 

@@ -44,7 +44,7 @@ public/
   js/game/minimap.js     locator map (top right of the play screen)
   js/hud/preview.js      artwork preview (top centre of the play screen)
   js/hud/filmstrip.js    film strip of photographed artworks (bottom), with the fly-in animation
-  js/game/input.js       keyboard; driveInput(), onKey()
+  js/game/input.js       keyboard (arrows/WASD) + gamepad; driveInput(), lookInput(), onKey()
   js/screens/landing.js  feature 1
   js/screens/lobby.js    feature 2
   js/screens/play.js     feature 3

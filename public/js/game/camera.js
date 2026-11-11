@@ -3,6 +3,10 @@
 import * as THREE from 'three';
 import { CELL } from '../config.js';
 import { camera, canvas, scene } from '../scene.js';
+import { CAR } from './car.js';
+
+const FOV = 60;           // degrees, at normal speeds
+const BOOST_FOV = 14;     // extra degrees at full boost speed, so boosting feels fast
 
 export const chase = {
   dist: 420,            // distance behind the car (scroll to change)
@@ -27,6 +31,9 @@ export function updateCamera(car, dt, snap = false) {
   scene.fog.near = CELL * 8 + chase.dist;
   scene.fog.far = CELL * 18 + chase.dist * 2;
   camera.far = scene.fog.far + CELL;
+  const over = Math.max(0, Math.min(1, (car.speed - CAR.maxSpeed) / (CAR.boostMaxSpeed - CAR.maxSpeed)));
+  const fov = FOV + BOOST_FOV * over;
+  camera.fov = snap ? fov : camera.fov + (fov - camera.fov) * (1 - Math.exp(-dt * 6));
   camera.updateProjectionMatrix();
 }
 

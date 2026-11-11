@@ -14,7 +14,7 @@
 // (see the finish screen).
 import { stepCar, createCar, removeCar, placeCar, syncCarModel, setCarLabel, setCarColor } from '../game/car.js';
 import { chase, groundPointAt, isDragging } from '../game/camera.js';
-import { driveInput, setDrivingEnabled, onKey, onKeyUp } from '../game/input.js';
+import { driveInput, lookInput, isDriveKey, padConnected, setDrivingEnabled, onKey, onKeyUp } from '../game/input.js';
 import { tileAt, progress, spawnPoint, world, removeTile, tileMatches } from '../game/world.js';
 import { createMinimap } from '../game/minimap.js';
 import { createPreview } from '../hud/preview.js';
@@ -31,7 +31,11 @@ const SMOOTHING = 12;      // how fast remote cars catch up with their latest po
 const SCOREBOARD_OTHERS = 4; // other players listed in the HUD (most photos first); the rest are summarised
 const ANNOUNCE_MS = 4000;  // how long the challenge banner stays up at the start
 const END_DELAY_MS = 1800; // pause on "film full" before the results, so the last photo can land
-const HURRY_S = 10;        // the clock turns red for the last few seconds
+const HURRY_S = 10;
+const LOOK_RATE = 2.5;     // rad/s the camera swings round at full right-stick
+const KEYS_HELP = 'Arrow keys or WASD to drive · hold B to boost · Space to photograph · hold Z to enlarge the painting · scroll to zoom · drag to look around · Esc to quit';
+const PAD_HELP = 'Controller: RT/LT to drive and brake · left stick to steer · hold B to boost · A to photograph · hold Y to enlarge the painting · right stick to look around · Menu to quit';
+let looking = false;       // the right stick is swinging the camera        // the clock turns red for the last few seconds
 
 let $, ctx, net, off = [], minimap, preview, filmstrip;
 let remotes = new Map();   // player id → { player, car, target, picks: tileId[] }
@@ -88,6 +92,14 @@ function endGame(reason, byId = null) {
   showClock();
   banner(title, 'Developing the photos…');
   timers.push(setTimeout(() => finishRun(by, reason, ending.players), END_DELAY_MS));
+}
+
+// Boost tank gauge in the HUD.
+function showBoost() {
+  const el = $('.boost');
+  el.querySelector('.boost-fill').style.width = `${Math.round(ctx.car.boost * 100)}%`;
+  el.classList.toggle('on', ctx.car.boosting);
+  el.classList.toggle('empty', ctx.car.boost <= 0);
 }
 
 // --- Time mode clock ---------------------------------------------------------------
@@ -274,9 +286,10 @@ export default {
         <div class="clock" hidden></div>
         <div class="goal"></div>
         <div class="inv"></div>
+        <div class="boost"><span>Boost</span><span class="boost-bar"><span class="boost-fill"></span></span></div>
         <div class="scores"></div>
         <div class="net-error"></div>
-        <div class="muted">Arrow keys to drive · Space to photograph · hold Z to enlarge the painting · scroll to zoom · drag to look around · Esc to quit</div>
+        <div class="muted help"></div>
         <button class="finish-btn">Quit game</button>
       </div>
       <div class="panel banner" hidden><div class="banner-title"></div><div class="banner-sub muted"></div></div>
@@ -307,15 +320,22 @@ export default {
       showScores();
     };
 
+    const showHelp = () => { $('.help').textContent = padConnected() ? PAD_HELP : KEYS_HELP; };
+    showHelp();
+    looking = false;
     setDrivingEnabled(true);
+    addEventListener('gamepadconnected', showHelp);
+    addEventListener('gamepaddisconnected', showHelp);
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerleave', hideTip);
     off = [
       () => canvas.removeEventListener('pointermove', onPointerMove),
       () => canvas.removeEventListener('pointerleave', hideTip),
+      () => removeEventListener('gamepadconnected', showHelp),
+      () => removeEventListener('gamepaddisconnected', showHelp),
       ctx.inventory.onChange(showInventory),
       onKey(e => {
-        if (e.key.startsWith('Arrow')) chase.orbitReturn = true;
+        if (isDriveKey(e)) chase.orbitReturn = true;
         if (e.key === 'Escape' && !ending) finishRun();
         if (e.key === 'z' || e.key === 'Z') preview.zoom(true);
         if (e.key === ' ') {
@@ -344,6 +364,17 @@ export default {
   update(dt) {
     stepCar(ctx.car, driveInput(), dt);  // input is off once the game ends, so the car coasts to a stop
     tickClock();
+    showBoost();
+    // Right stick: swing the camera round the car, and back behind it when let go.
+    const look = lookInput();
+    if (look.x) {
+      chase.orbit += look.x * LOOK_RATE * dt;
+      chase.orbitReturn = false;
+      looking = true;
+    } else if (looking) {
+      chase.orbitReturn = true;
+      looking = false;
+    }
     if (net) {
       sendOwnState(dt);
       updateRemotes(dt);

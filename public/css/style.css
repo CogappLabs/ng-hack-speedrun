@@ -57,6 +57,11 @@ button:disabled { opacity: 0.5; cursor: default; }
 .hud .goal { font-weight: 600; color: #fff; }
 .hud .clock { font-size: 28px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .hud .clock.hurry { color: var(--accent); }
+.hud .boost { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.hud .boost-bar { flex: 1; max-width: 120px; height: 6px; border-radius: 3px; background: #ffffff22; overflow: hidden; }
+.hud .boost-fill { display: block; height: 100%; background: #6fd3ff; }
+.hud .boost.on .boost-fill { background: #fff; box-shadow: 0 0 6px #6fd3ff; }
+.hud .boost.empty .boost-bar { background: #e6394644; }
 
 /* Challenge announcement / game over banner, centre of the play screen */
 .banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%); padding: 18px 28px;

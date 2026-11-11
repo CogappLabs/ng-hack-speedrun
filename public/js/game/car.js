@@ -15,11 +15,18 @@ export const CAR = {
   maxSpeed: 1100,      // u/s (~4 cells/s)
   drag: 1.2,           // proportional slowdown per second when coasting
   turnRate: 2.6,       // rad/s at full steering authority
+  // Boost (hold B): a burst of speed for crossing the map, from a tank that refills when not boosting.
+  boostMaxSpeed: 2800, // u/s (~11 cells/s)
+  boostAccel: 2600,    // u/s² while boosting
+  boostSeconds: 3,     // a full tank lasts this long
+  refillSeconds: 6,    // an empty tank refills in this long
+  boostSettle: 2.5,    // after boosting, excess speed above maxSpeed fades at this rate per second
 };
 
 // heading 0 = east, -π/2 = north
 export function createCar({ color = 0xe63946 } = {}) {
-  const car = { x: 0, y: 0, heading: -Math.PI / 2, speed: 0, steer: 0, model: buildModel(color) };
+  // boost: how full the boost tank is (0-1); boosting: whether it's in use this frame.
+  const car = { x: 0, y: 0, heading: -Math.PI / 2, speed: 0, steer: 0, boost: 1, boosting: false, model: buildModel(color) };
   scene.add(car.model.group);
   return car;
 }
@@ -33,23 +40,39 @@ export function setCarColor(car, color) {
 }
 
 export function placeCar(car, x, y, heading = -Math.PI / 2) {
-  Object.assign(car, { x, y, heading, speed: 0, steer: 0 });
+  Object.assign(car, { x, y, heading, speed: 0, steer: 0, boost: 1, boosting: false });
 }
 
-// input: { up, down, steer } where steer is -1 (left), 0 or 1 (right).
-export function stepCar(car, { up, down, steer }, dt) {
-  car.steer = steer;
-  if (up) car.speed += CAR.accel * dt;
-  if (down) car.speed -= (car.speed > 0 ? CAR.brake : CAR.accel) * dt;
-  if (!up && !down) {
+// input: { up, down, steer, boost }: up and down are 0-1 (true/false work too; a controller's
+// triggers give values in between), steer is -1 (left) to 1 (right) and boost is true while
+// held. Boosting drives forward even without Up.
+export function stepCar(car, { up, down, steer, boost = false }, dt) {
+  up = +up;
+  down = +down;
+  car.steer = Math.round(steer * 100) / 100;  // rounded: it's sent to other players
+  car.boosting = boost && !down && car.boost > 0;
+  if (car.boosting) {
+    car.speed += CAR.boostAccel * dt;
+    car.boost = Math.max(0, car.boost - dt / CAR.boostSeconds);
+  } else {
+    car.boost = Math.min(1, car.boost + dt / CAR.refillSeconds);
+    car.speed += CAR.accel * up * dt;
+  }
+  if (down) car.speed -= (car.speed > 0 ? CAR.brake : CAR.accel) * down * dt;
+  if (!up && !down && !car.boosting) {
     car.speed -= car.speed * CAR.drag * dt;
     if (Math.abs(car.speed) < 5) car.speed = 0;
   }
-  car.speed = Math.max(-CAR.reverseMax, Math.min(CAR.maxSpeed, car.speed));
+  // Above normal top speed (after a boost) ease back down rather than stopping dead.
+  if (!car.boosting && car.speed > CAR.maxSpeed) {
+    car.speed = Math.max(CAR.maxSpeed, car.speed - (car.speed - CAR.maxSpeed) * CAR.boostSettle * dt - CAR.accel * dt);
+  }
+  const top = car.boosting ? CAR.boostMaxSpeed : Math.max(CAR.maxSpeed, car.speed);
+  car.speed = Math.max(-CAR.reverseMax, Math.min(top, car.speed));
 
   // Steering authority ramps up with speed; reversing flips the turn direction like a real car.
   const authority = Math.min(1, Math.abs(car.speed) / 300) * Math.sign(car.speed);
-  car.heading += steer * CAR.turnRate * authority * dt;
+  car.heading += car.steer * CAR.turnRate * authority * dt;
 
   car.x += Math.cos(car.heading) * car.speed * dt;
   car.y += Math.sin(car.heading) * car.speed * dt;
