@@ -22,6 +22,7 @@ import { createFilmstrip } from '../hud/filmstrip.js';
 import { COLLECTION_SIZE } from '../config.js';
 import { cssColor, selfPlayer, PLAYER_COLORS } from '../net/net.js';
 import { minutesText } from '../options.js';
+import { sfx, engine } from '../sound.js';
 import { canvas } from '../scene.js';
 import { render, esc } from '../ui.js';
 
@@ -33,9 +34,11 @@ const ANNOUNCE_MS = 4000;  // how long the challenge banner stays up at the star
 const END_DELAY_MS = 1800; // pause on "film full" before the results, so the last photo can land
 const HURRY_S = 10;
 const LOOK_RATE = 2.5;     // rad/s the camera swings round at full right-stick
-const KEYS_HELP = 'Arrow keys or WASD to drive · hold B to boost · Space to photograph · hold Z to enlarge the painting · scroll to zoom · drag to look around · Esc to quit';
-const PAD_HELP = 'Controller: RT/LT to drive and brake · left stick to steer · hold B to boost · A to photograph · hold Y to enlarge the painting · right stick to look around · Menu to quit';
-let looking = false;       // the right stick is swinging the camera        // the clock turns red for the last few seconds
+const KEYS_HELP = 'Arrow keys or WASD to drive · hold B to boost · Space to photograph · hold Z to enlarge the painting · scroll to zoom · drag to look around · M to mute · Esc to quit';
+const PAD_HELP = 'Controller: RT/LT to drive and brake · left stick to steer · hold B to boost · A to photograph · hold Y to enlarge the painting · right stick to look around · View to mute · Menu to quit';
+let looking = false;       // the right stick is swinging the camera
+let wasBoosting = false;   // for the boost sounds
+let lastTick = null;       // the countdown second we last ticked for        // the clock turns red for the last few seconds
 
 let $, ctx, net, off = [], minimap, preview, filmstrip;
 let remotes = new Map();   // player id → { player, car, target, picks: tileId[] }
@@ -90,6 +93,7 @@ function endGame(reason, byId = null) {
   ending = { by, reason, players: results() };
   setDrivingEnabled(false);
   showClock();
+  if (reason === 'time') sfx.timeUp(); else sfx.end();
   banner(title, 'Developing the photos…');
   timers.push(setTimeout(() => finishRun(by, reason, ending.players), END_DELAY_MS));
 }
@@ -112,6 +116,8 @@ function showClock() {
   const el = $('.clock');
   el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   el.classList.toggle('hurry', s <= HURRY_S);
+  if (s > 0 && s <= HURRY_S && s !== lastTick && !ending) (s <= 3 ? sfx.tickUrgent : sfx.tick)();
+  lastTick = s;
 }
 
 function tickClock() {
@@ -156,6 +162,7 @@ const hideTip = () => { $('.tip').style.display = 'none'; };
 // Space pressed: try to photograph the artwork under the car.
 function collect() {
   const t = tileAt(ctx.car.x, ctx.car.y);
+  if (!ending && t && ctx.inventory.full) sfx.denied();
   if (ending || !t || ctx.inventory.full || pending.has(t.id)) return;
   if (net) {
     pending.add(t.id);
@@ -170,6 +177,7 @@ function collected(t) {
   const index = ctx.inventory.size;
   if (!ctx.inventory.add(t)) return;
   flash();
+  sfx.shutter();
   filmstrip.add(ctx.inventory.items[index], index, preview.img);  // before removeTile hides the preview
   removeTile(t);
   if (!ctx.inventory.full) return;
@@ -186,6 +194,7 @@ function onSelected({ id, tileId }) {
     return;
   }
   removeTile(t);
+  sfx.remoteShutter();
   const r = remotes.get(id);
   if (r && !r.picks.includes(tileId)) {
     r.picks.push(tileId);
@@ -323,6 +332,9 @@ export default {
     const showHelp = () => { $('.help').textContent = padConnected() ? PAD_HELP : KEYS_HELP; };
     showHelp();
     looking = false;
+    wasBoosting = false;
+    lastTick = null;
+    sfx.start();
     setDrivingEnabled(true);
     addEventListener('gamepadconnected', showHelp);
     addEventListener('gamepaddisconnected', showHelp);
@@ -365,6 +377,10 @@ export default {
     stepCar(ctx.car, driveInput(), dt);  // input is off once the game ends, so the car coasts to a stop
     tickClock();
     showBoost();
+    engine.update(ctx.car);
+    if (ctx.car.boosting && !wasBoosting) sfx.boost();
+    if (!ctx.car.boosting && wasBoosting && ctx.car.boost <= 0) sfx.boostEmpty();
+    wasBoosting = ctx.car.boosting;
     // Right stick: swing the camera round the car, and back behind it when let go.
     const look = lookInput();
     if (look.x) {
@@ -392,6 +408,7 @@ export default {
     timers.forEach(clearTimeout);
     timers = [];
     setDrivingEnabled(false);
+    engine.stop();
     off.forEach(f => f());
     off = [];
     for (const r of remotes.values()) removeCar(r.car);

@@ -34,6 +34,7 @@ public/
   js/config.js           shared constants
   js/scene.js            the one renderer / scene / camera
   js/ui.js               DOM helpers (render, esc)
+  js/sound.js            synthesised sound effects + engine noise (Web Audio), M to mute
   js/inventory.js        the local player's photographed artworks (at most COLLECTION_SIZE)
   js/options.js          game options ({ map, difficulty, mode, minutes }), saved in localStorage
   js/net/net.js          multiplayer Net interface, player colours, emitter

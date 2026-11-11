@@ -78,6 +78,7 @@ push. To try the live game against another server without changing the code, add
 | Space | A | Photograph the artwork under the car (10 photos per game) |
 | Z (hold) | Y (hold) | Enlarge the painting preview to fill the screen; let go to shrink it back |
 | Esc | Menu | Quit the game and see your results so far |
+| M | View | Sound on/off (any screen; remembered). Or click the speaker, bottom right |
 
 WASD is matched by key position, so it's ZQSD on an AZERTY keyboard. Any controller with the
 browser's "standard" mapping works; browsers only reveal it after a button is pressed on the page.

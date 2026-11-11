@@ -16,6 +16,7 @@ import { cssColor } from '../net/net.js';
 import { COLLECTION_SIZE } from '../config.js';
 import { cleanOptions, minutesText, mapLabel } from '../options.js';
 import { world } from '../game/world.js';
+import { sfx } from '../sound.js';
 
 let $;
 
@@ -82,6 +83,10 @@ export default {
         : top.length > 1 ? `It’s a tie: ${top.map(p => p.self ? 'you' : esc(p.name)).join(' and ')}`
         : top[0].self ? 'You win!' : `${esc(top[0].name)} wins!`;
     }
+    // A fanfare if we won (or, playing alone, found any), otherwise a gentler chord.
+    const won = (me?.score ?? 0) > 0 && (mode === 'single' || rankOf(me) === 1);
+    (won ? sfx.win : sfx.results)();
+
     const why = reason === 'time' ? 'Time’s up.'
       : reason === 'all-full' ? 'Everyone’s film is full.'
       : mode === 'single' ? (reason === 'full' ? 'Your film is full.'

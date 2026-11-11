@@ -6,7 +6,7 @@
 //
 // Controller (Gamepad API, "standard" mapping, e.g. an Xbox controller): RT/LT accelerate and
 // brake (analogue), left stick or D-pad to steer, B to boost, right stick to look around.
-// A, Y and Menu are passed to onKey/onKeyUp listeners as Space, Z and Escape, so screens
+// A, Y, Menu and View are passed to onKey/onKeyUp listeners as Space, Z, Escape and M, so screens
 // handle them like the keyboard. Browsers only reveal a controller once a button is pressed.
 const keys = new Set();       // KeyboardEvent.code values held down
 const listeners = new Set();
@@ -19,8 +19,8 @@ const DRIVE_CODES = new Set([...UP, ...DOWN, ...LEFT, ...RIGHT]);
 const BOOST = 'KeyB';
 
 // Standard gamepad mapping: button indices and axes.
-const PAD = { A: 0, B: 1, Y: 3, LT: 6, RT: 7, MENU: 9, DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15 };
-const PAD_KEYS = { [PAD.A]: ' ', [PAD.Y]: 'z', [PAD.MENU]: 'Escape' };  // buttons passed on as keys
+const PAD = { A: 0, B: 1, Y: 3, LT: 6, RT: 7, VIEW: 8, MENU: 9, DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15 };
+const PAD_KEYS = { [PAD.A]: ' ', [PAD.Y]: 'z', [PAD.MENU]: 'Escape', [PAD.VIEW]: 'm' };  // buttons passed on as keys
 const DEADZONE = 0.15;        // stick movement smaller than this is ignored
 const TRIGGER_MIN = 0.05;     // trigger pressure smaller than this is ignored
 
@@ -69,8 +69,8 @@ export function lookInput() {
 // The play screen uses it to swing the camera back behind the car.
 export const isDriveKey = e => DRIVE_CODES.has(e.code) || !!e.padDrive;
 
-// Listen for any keydown (not just driving keys). Controller buttons A, Y and Menu arrive as
-// { key: ' ' | 'z' | 'Escape', gamepad: true }. Returns an unsubscribe function.
+// Listen for any keydown (not just driving keys). Controller buttons A, Y, Menu and View arrive
+// as { key: ' ' | 'z' | 'Escape' | 'm', gamepad: true }. Returns an unsubscribe function.
 export function onKey(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);

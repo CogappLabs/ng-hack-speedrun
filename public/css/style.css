@@ -21,6 +21,11 @@ button.primary { background: var(--accent); color: #fff; }
 input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid #444; background: #111; color: var(--text); }
 .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
 
+/* Sound on/off (js/sound.js), bottom right on every screen. */
+.mute-btn { position: fixed; right: 10px; bottom: 10px; z-index: 5; padding: 6px 9px; font-size: 16px;
+  line-height: 1; background: var(--panel); }
+.mute-btn[aria-pressed="true"] { opacity: 0.7; }
+
 /* --- Landing (js/screens/landing.js) --- */
 .landing h1 { margin: 0 0 4px; font-size: 32px; }
 .landing .options { margin: 14px 0 4px; display: grid; gap: 8px; }
