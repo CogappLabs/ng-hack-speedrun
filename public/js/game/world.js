@@ -9,19 +9,39 @@ const TEX_KEEP = 28;       // cells: textures further than this are freed
 const TEX_PER_FRAME = 8;   // texture uploads allowed per frame (keeps frame times smooth)
 const TEX_MAX_PX = 512;    // longest side of an uploaded texture
 
-// tiles: [{id, acc, title, url, col, row, mesh, img?}]. start: the tile nearest the centre.
-export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map(), start: null };
+// tiles: [{id, acc, title, url, col, row, mesh, img?, avg?}]. avg is the image's average
+// colour as a CSS string, once loaded (used by the locator map).
+export const world = { cols: 0, rows: 0, tiles: [], byCell: new Map(), byId: new Map() };
 export const progress = { loaded: 0, total: 0, done: false };
 
 export const tileAt = (x, y) => world.byCell.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
 export const tileCentre = t => ({ x: (t.col + 0.5) * CELL, y: (t.row + 0.5) * CELL });
 
-// Where a player starts: side by side on the start tile, facing north. Slot 0 is the centre,
-// then 1 to the right, 2 to the left, 3 further right, and so on.
-export function spawnPoint(slot = 0) {
-  const c = tileCentre(world.start);
-  const side = slot % 2 ? 1 : -1;
-  return { x: c.x + side * Math.ceil(slot / 2) * 80, y: c.y };
+// Where a player starts: a random tile and heading picked from `seed`, with each slot on a
+// different tile. Every client calls this with the same seed, so they all agree on where
+// everyone starts without sending positions.
+export function spawnPoint(seed, slot = 0) {
+  const rand = mulberry32(seed);
+  // Partial Fisher-Yates shuffle of tile indices, just far enough to reach this slot.
+  const idx = world.tiles.map((_, i) => i);
+  for (let i = 0; i <= slot; i++) {
+    const j = i + Math.floor(rand() * (idx.length - i));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  const t = world.tiles[idx[slot]];
+  return { ...tileCentre(t), heading: Math.floor(rand() * 4) * Math.PI / 2 - Math.PI };
+}
+
+export const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
+
+// Small seeded random number generator (returns floats in [0, 1)).
+function mulberry32(a) {
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 const tileGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -38,12 +58,6 @@ export async function loadWorld(url = 'layout.json') {
     world.byId.set(t.id, t);
   }
   progress.total = world.tiles.length;
-
-  const mc = world.tiles.reduce((s, t) => s + t.col, 0) / world.tiles.length;
-  const mr = world.tiles.reduce((s, t) => s + t.row, 0) / world.tiles.length;
-  world.start = world.tiles.reduce((best, t) =>
-    (t.col - mc) ** 2 + (t.row - mr) ** 2 < (best.col - mc) ** 2 + (best.row - mr) ** 2 ? t : best);
-
   buildMeshes();
 }
 
@@ -91,12 +105,21 @@ export async function loadImages(focus) {
       img.crossOrigin = 'anonymous';  // needed for WebGL textures (server sends CORS headers)
       img.decoding = 'async';
       img.src = t.url;
-      try { await img.decode(); t.img = img; fitTile(t); } catch { t.failed = true; }
+      try { await img.decode(); t.img = img; fitTile(t); t.avg = averageColor(img); } catch { t.failed = true; }
       progress.loaded++;
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   progress.done = true;
+}
+
+// Average colour of an image, by letting the browser scale it down to one pixel.
+const avgCtx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 })
+  .getContext('2d', { willReadFrequently: true });
+function averageColor(img) {
+  avgCtx.drawImage(img, 0, 0, 1, 1);
+  const [r, g, b] = avgCtx.getImageData(0, 0, 1, 1).data;
+  return `rgb(${r},${g},${b})`;
 }
 
 function makeTexture(img) {

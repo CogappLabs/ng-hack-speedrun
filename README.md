@@ -4,7 +4,7 @@ Dash to gather artworks. Created for the National Gallery Hack Day November 2026
 A web game where you drive a car across a 3D landscape made of National Gallery
 artworks, laid flat like floor tiles. Paintings that look similar sit next to each other, so you drive
 between neighbouring works and (soon) jump across the gaps between groups. Play on your
-own or with up to 5 others.
+own or with up to 9 others.
 
 Play it at https://cogapplabs.github.io/ng-hack-speedrun/.
 
@@ -76,11 +76,14 @@ push. To try the live game against another server without changing the code, add
 | Space | Select the artwork under the car (placeholder mechanic) |
 | Esc | Finish the run and see your selections |
 
-In multiplayer, the host starts the game for everyone. Other players' cars show their names,
-the HUD shows everyone's selection count, and the final screen shows what the others had
-selected when you finished.
+Each run starts on a random tile, facing a random direction. In multiplayer, every player
+starts somewhere different. The host starts the game for everyone. Other players' cars show
+their names, and the HUD shows your selection count plus the top 4 other players (with
+"+ N more" for the rest). The final screen shows what the others had selected when you finished.
 
-The HUD shows the artwork under the car, or "Off-road" when you're in a gap.
+The HUD (top left) shows the artwork under the car, or "Off-road" when you're in a gap.
+The locator map (top right) shows the whole grid, each artwork in its average colour, with a
+dot for every player. Yours is the larger dot with an arrow pointing where you're heading.
 
 ## How it works
 
@@ -141,8 +144,14 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
   Uploading all 2,400 at once would use too much GPU memory. Fog hides the edge.
 - **Cars**: a simple box model with turning front wheels and a slight lean in corners,
   one per player. Arcade handling (heading + speed, steering scaled by speed), with
-  all the numbers in the `CAR` settings block in `js/game/car.js`. Cars start side
-  by side on the tile nearest the centre of all tiles.
+  all the numbers in the `CAR` settings block in `js/game/car.js`.
+- **Starting positions**: `spawnPoint(seed, slot)` in `js/game/world.js` shuffles the tiles
+  with a seeded random number generator and gives each slot its own tile and heading. In
+  multiplayer the server sends one random seed when the host starts, so every browser works
+  out the same starting tiles without the server needing to know the map. Single player
+  uses a fresh random seed each run.
+- **Locator map** (`js/game/minimap.js`): two pixels per grid cell, redrawn every frame.
+  The grid background is cached and refreshed while images load.
 - **Camera**: a chase camera sits behind and above the car and swings round after
   it with a short delay. The settings are in the `chase` block in `js/game/camera.js`.
 
@@ -160,10 +169,15 @@ the screens (landing, lobby, play, finish) and the interfaces between them.
   heard from in 75 seconds. That cleans up rooms whose server stopped without saying so,
   e.g. during a redeploy.
 - **Players**: the first player in a room is the host, and only the host can start the game. If the host leaves, the next player
-  takes over. Each player gets a colour and a starting slot (up to 6 players).
+  takes over. Each player gets a slot (0–9), which sets their colour and starting tile.
+  Rooms hold up to 10 players (`MAX_PLAYERS` in `party/server.ts`).
 - **During a game**: each browser sends its car's position about 15 times a second, and
   the server relays it to the others, who smooth it out. Selections are relayed the same way.
-  The server keeps no game state beyond the player list, so nothing is stored.
+  The server keeps no game state beyond the player list, so nothing is stored. With 10
+  players that's about 150 messages in and 1,350 out per second per room, which is light
+  for one Durable Object.
+- **Colours**: `PLAYER_COLORS` in `public/js/net/net.js` spreads 10 hues evenly round the
+  colour wheel, starting with the single-player red.
 - **Screens** only talk to the `Net` interface in `public/js/net/net.js`. The
   message formats are listed at the top of `public/js/net/partykit.js`.
 

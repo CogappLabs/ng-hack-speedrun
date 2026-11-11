@@ -5,6 +5,7 @@ import { stepCar, createCar, removeCar, placeCar, syncCarModel, setCarLabel, set
 import { chase, groundPointAt, isDragging } from '../game/camera.js';
 import { driveInput, setDrivingEnabled, onKey } from '../game/input.js';
 import { tileAt, progress, spawnPoint, world } from '../game/world.js';
+import { createMinimap } from '../game/minimap.js';
 import { cssColor, selfPlayer, PLAYER_COLORS } from '../net/net.js';
 import { canvas } from '../scene.js';
 import { render, esc } from '../ui.js';
@@ -12,8 +13,9 @@ import { render, esc } from '../ui.js';
 const SEND_HZ = 15;        // how often we send our car's position
 const IDLE_SEND_S = 1;     // when not moving, still send this often so late messages settle
 const SMOOTHING = 12;      // how fast remote cars catch up with their latest position (per second)
+const SCOREBOARD_OTHERS = 4; // other players listed in the HUD (highest scores first); the rest are summarised
 
-let $, ctx, net, off = [], lastTileId;
+let $, ctx, net, off = [], lastTileId, minimap;
 let remotes = new Map();   // player id → { player, car, target, picks: tileId[] }
 let sendTimer = 0, idleTimer = 0, lastSent = '';
 let sentIds = new Set();   // inventory ids already announced to the other players
@@ -51,8 +53,8 @@ function syncPlayers(players) {
     let r = remotes.get(p.id);
     if (!r) {
       const car = createCar({ color: p.color });
-      const s = spawnPoint(p.slot);
-      placeCar(car, s.x, s.y);
+      const s = spawnPoint(net.seed, p.slot);
+      placeCar(car, s.x, s.y, s.heading);
       r = { player: p, car, target: null, picks: [] };
       remotes.set(p.id, r);
     }
@@ -70,11 +72,15 @@ function syncPlayers(players) {
 
 function showScores() {
   if (!net) return;
-  const me = net.players.find(p => p.id === net.selfId);
+  const me = selfPlayer(net);
+  const others = [...remotes.values()].sort((a, b) => b.picks.length - a.picks.length);
+  const shown = others.slice(0, SCOREBOARD_OTHERS);
+  const hidden = others.length - shown.length;
   const rows = [
     me && `<span style="color:${cssColor(me.color)}">●</span> You: ${ctx.inventory.size}`,
-    ...[...remotes.values()].map(r =>
+    ...shown.map(r =>
       `<span style="color:${cssColor(r.player.color)}">●</span> ${esc(r.player.name)}: ${r.picks.length}`),
+    hidden > 0 && `<span class="muted">+ ${hidden} more player${hidden === 1 ? '' : 's'}</span>`,
   ].filter(Boolean);
   $('.scores').innerHTML = rows.join('<br>');
 }
@@ -135,6 +141,8 @@ export default {
       </div>
       <div class="tip"></div>`);
     $('.finish-btn').onclick = finishRun;
+    minimap = createMinimap();
+    root.append(minimap.canvas);
 
     const showInventory = items => {
       $('.inv').textContent = `Selected: ${items.length}`;
@@ -189,6 +197,10 @@ export default {
       $('.location').textContent = t ? `On: ${t.title} (${t.acc})` : 'Off-road — in a gap';
     }
     $('.status').textContent = progress.done ? '' : `Loading artworks… ${progress.loaded}/${progress.total}`;
+    minimap.draw([
+      { ...ctx.car, color: selfPlayer(net)?.color ?? PLAYER_COLORS[0], self: true },
+      ...[...remotes.values()].map(r => ({ x: r.car.x, y: r.car.y, heading: r.car.heading, color: r.player.color })),
+    ]);
   },
 
   unmount() {

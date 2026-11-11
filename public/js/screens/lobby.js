@@ -97,7 +97,7 @@ export default {
         $('.start').hidden = !host;
         $('.waiting').hidden = host;
       }),
-      net.on('start', () => { ctx.newRun(selfPlayer(net)?.slot ?? 0); ctx.go('play'); }),
+      net.on('start', ({ seed }) => { ctx.newRun(selfPlayer(net)?.slot ?? 0, seed); ctx.go('play'); }),
       net.on('error', msg => fail(msg)),
     ];
   },

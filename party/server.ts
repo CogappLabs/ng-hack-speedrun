@@ -11,7 +11,7 @@
 // message shapes.
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 
-const MAX_PLAYERS = 6;          // one per colour in PLAYER_COLORS (public/js/net/net.js)
+const MAX_PLAYERS = 10;         // keep in step with PLAYER_COLORS (public/js/net/net.js)
 const HEARTBEAT_MS = 30_000;    // open rooms re-announce themselves this often...
 const STALE_MS = 75_000;        // ...and the directory drops rooms it hasn't heard from in this long
 const DIRECTORY = "all";        // the single RoomDirectory instance
@@ -56,7 +56,10 @@ export class GameRoom extends Server<Env> {
 
     if (msg.type === "start" && me.host && !this.started) {
       this.started = true;
-      this.broadcast(JSON.stringify({ type: "start" }));
+      // Every client turns the seed + its slot into the same random starting tiles (see
+      // spawnPoint in public/js/game/world.js), so the server doesn't need to know the map.
+      const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+      this.broadcast(JSON.stringify({ type: "start", seed }));
       this.announce();
     } else if (msg.type === "state") {
       const { x, y, heading, speed, steer } = msg;

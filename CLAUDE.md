@@ -40,6 +40,7 @@ public/
   js/game/world.js       layout, tiles, image loading, textures
   js/game/car.js         car physics (stepCar) + 3D model; createCar() per player
   js/game/camera.js      chase camera, drag/scroll, groundPointAt()
+  js/game/minimap.js     locator map (top right of the play screen)
   js/game/input.js       keyboard; driveInput(), onKey()
   js/screens/landing.js  feature 1
   js/screens/lobby.js    feature 2
@@ -61,7 +62,9 @@ Change these only on purpose, and say so in the commit message, because other se
 - `ctx.car`: the local player's car (the camera follows it)
 - `ctx.session`: `{ mode: 'single' | 'multi', net: Net | null }`
 - `ctx.inventory`: see below
-- `ctx.newRun(slot = 0)`: put the car at its start position (`Player.slot` in multiplayer) and empty the inventory
+- `ctx.newRun(slot = 0, seed = random)`: put the car on its random starting tile and empty the
+  inventory. In multiplayer pass `Player.slot` and the seed from the `start` event, so all
+  players agree where everyone starts (`spawnPoint(seed, slot)` in `js/game/world.js`).
 
 **Inventory** (`js/inventory.js`): `add(tile)`, `remove(id)`, `has(id)`, `reset()`, `items`,
 `size`, `onChange(fn) → unsubscribe`. Items are `{ id, acc, title, url, pickedAt }`.
@@ -71,10 +74,13 @@ Change these only on purpose, and say so in the commit message, because other se
 
 **Net** (`js/net/net.js`): `createRoom(name, title?) → {id, title}`, `joinRoom(roomId, name)`,
 `startGame()`, `sendState(pose)`, `sendSelected(tileId)`, `on(event, fn) → unsubscribe`,
-`leave()`, `selfId`, `room`, `players`. The open-rooms list comes from
-`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start`, `state`, `selected`, `error`. Full types are
+`leave()`, `selfId`, `room`, `seed`, `players`. The open-rooms list comes from
+`watchRooms(fn) → stop` in `js/net/partykit.js` (fn gets `RoomInfo[]`, or null while disconnected). Events: `players`, `start` (`{ seed }`), `state`, `selected`, `error`. Full types are
 in the file's header comment. The wire messages are listed in `js/net/partykit.js`; keep
 them in step with `party/server.ts`.
+
+**Room size**: `MAX_PLAYERS` in `party/server.ts` (10). `PLAYER_COLORS` in `js/net/net.js` must
+have the same length, since a player's slot picks their colour.
 
 **Multiplayer server host**: `PARTY_HOST` in `js/config.js`, which is `localhost:8787` when
 the page is on localhost, otherwise `DEPLOYED_PARTY_HOST`

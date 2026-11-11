@@ -37,6 +37,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 .hud { position: absolute; top: 8px; left: 8px; padding: 6px 10px; border-radius: 4px; pointer-events: none; }
 .hud button { pointer-events: auto; margin-top: 6px; padding: 4px 10px; }
 .hud .net-error { color: #f88; }
+.minimap { position: absolute; top: 8px; right: 8px; width: min(188px, 30vw); height: auto;
+  background: #000a; border-radius: 4px; pointer-events: none; }
 .tip { position: fixed; background: #000c; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; max-width: 320px; }
 
 /* --- Finish (js/screens/finish.js) --- */

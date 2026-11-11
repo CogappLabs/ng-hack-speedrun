@@ -5,7 +5,7 @@
 //   Client → server: { type: 'join', name, create, title? } · { type: 'start' }
 //                    { type: 'state', x, y, heading, speed, steer } · { type: 'selected', tileId }
 //   Server → client: { type: 'joined', selfId, room: { id, title } } · { type: 'players', players }
-//                    { type: 'start' } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
+//                    { type: 'start', seed } · { type: 'state', id, ...pose } · { type: 'selected', id, tileId }
 //                    { type: 'error', message }
 //
 // Room directory (/parties/room-directory/all), listen only:
@@ -60,7 +60,8 @@ export function createPartyNet() {
             emit('players', net.players);
             break;
           case 'start':
-            emit('start');
+            net.seed = m.seed;
+            emit('start', { seed: m.seed });
             break;
           case 'state': {
             const { type, ...state } = m;
@@ -78,6 +79,7 @@ export function createPartyNet() {
   const net = {
     selfId: null,
     room: null,
+    seed: null,
     players: [],
     on,
     createRoom: (name, title) => connect(newRoomId(), name, true, title),
@@ -92,6 +94,7 @@ export function createPartyNet() {
       if (socket) { const s = socket; socket = null; s.close(); }
       net.selfId = null;
       net.room = null;
+      net.seed = null;
       net.players = [];
     },
   };
