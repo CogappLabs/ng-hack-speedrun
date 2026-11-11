@@ -2,12 +2,15 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "scipy"]
 # ///
-"""Snap artworks' continuous (visual_x, visual_y) positions onto a non-overlapping grid.
+"""Snap artworks' continuous (x, y) positions onto a non-overlapping grid.
 
 Each artwork is assigned to exactly one grid cell, minimising the total squared
 distance between where it "wants" to be and the cell it gets (Hungarian algorithm).
 The grid has some slack (more cells than artworks), so empty cells appear in the
 gaps between clusters rather than everything being forced into a solid block.
+
+--type picks which embedding's columns to use (<type>_x, <type>_y): visual (the default),
+clip, curatorial or combined.
 
 A high SLACK (several cells per artwork) keeps the overall outline close to the
 original scatter plot: sparse regions stay sparse, leaving gaps between tiles.
@@ -16,7 +19,7 @@ It also attaches subject labels (e.g. "hat", "horse") from input/filtered_subjec
 tile, for the game's challenges. Subjects are tagged per image, so they're matched on the
 image id: the last part of a tile's image_iiif_url equals the subject row's image_pid.
 
-Usage: uv run scripts/build_layout.py [--slack N] [--preview] [--subjects TSV] [input.tsv] [output.json]
+Usage: uv run scripts/build_layout.py [--slack N] [--type TYPE] [--preview] [--subjects TSV] [input.tsv] [output.json]
 """
 
 import argparse
@@ -31,6 +34,8 @@ from scipy.optimize import linear_sum_assignment
 root = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser()
 ap.add_argument("--slack", type=float, default=3.0, help="grid cells per artwork")
+ap.add_argument("--type", choices=["visual", "clip", "curatorial", "combined"], default="visual",
+                help="which embedding's <type>_x/<type>_y columns to lay out by")
 ap.add_argument("--preview", action="store_true", help="print an ASCII occupancy map")
 ap.add_argument("--subjects", type=Path, default=root / "input" / "filtered_subjects.tsv",
                 help="subject labels per image (TSV with image_pid, label, category)")
@@ -40,15 +45,16 @@ ap.add_argument("src", nargs="?", type=Path, default=root / "input" / "vectors_2
 ap.add_argument("dst", nargs="?", type=Path, default=root / "public" / "layout.json")
 args = ap.parse_args()
 SLACK, src, dst = args.slack, args.src, args.dst
+x_col, y_col = (f"{args.type}_{axis}" for axis in "xy")
 
 with src.open(newline="") as f:
     rows = [
         r
         for r in csv.DictReader(f, delimiter="\t")
-        if r["image_mid_url"] and r["visual_x"] and r["visual_y"]
+        if r["image_mid_url"] and r[x_col] and r[y_col]
     ]
 
-pts = np.array([[float(r["visual_x"]), float(r["visual_y"])] for r in rows])
+pts = np.array([[float(r[x_col]), float(r[y_col])] for r in rows])
 # Screen y grows downward; flip so "up" in the embedding is up on screen.
 pts[:, 1] *= -1
 
@@ -70,7 +76,7 @@ item_idx, cell_idx = linear_sum_assignment(cost)
 
 displacement = np.sqrt(cost[item_idx, cell_idx])
 print(
-    f"{n} artworks -> {cols}x{rows_n} grid ({cols * rows_n} cells); "
+    f"{args.type} ({x_col}, {y_col}): {n} artworks -> {cols}x{rows_n} grid ({cols * rows_n} cells); "
     f"mean shift {displacement.mean():.2f} cells, max {displacement.max():.2f}"
 )
 
