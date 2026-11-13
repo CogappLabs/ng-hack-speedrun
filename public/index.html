@@ -17,6 +17,31 @@
 <body>
 <!-- The 3D canvas is added by js/scene.js. Each screen draws its UI inside #screen, on top of the canvas. -->
 <div id="screen"></div>
+
+<!-- Credits line along the bottom (hidden while driving) and the overlay it opens: js/credits.js -->
+<p class="credits-line">
+  Images and data
+  <svg class="cc-logo" viewBox="0 0 64 64" role="img" aria-label="Creative Commons">
+    <circle cx="32" cy="32" r="28.5" fill="none" stroke="currentColor" stroke-width="5"/>
+    <path d="M29.7 26.3 A8 8 0 1 0 29.7 37.7 M46.7 26.3 A8 8 0 1 0 46.7 37.7" fill="none" stroke="currentColor" stroke-width="5"/>
+  </svg>
+  National Gallery. <button type="button" class="credits-open">Credits</button>.
+</p>
+<div id="credits" class="credits" role="dialog" aria-modal="true" aria-labelledby="credits-title" hidden>
+  <div class="panel credits-panel">
+    <button type="button" class="credits-close" aria-label="Close credits">✕</button>
+    <h2 id="credits-title">Credits</h2>
+    <p>A hack day project created by Tristan Roddis from Cogapp</p>
+    <p>This project draws on collection data generously made available by The National Gallery, London.
+      Descriptive and narrative texts are © The National Gallery, London, and are used under a
+      <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">Creative Commons Attribution 4.0 International licence (CC BY 4.0)</a>.
+      Images of works in the collection are © The National Gallery, London, and are reproduced unaltered under a
+      <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International licence (CC BY-NC-ND 4.0)</a>.
+      Our thanks to the Gallery for supporting open access to its collection.</p>
+  </div>
+</div>
+
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/credits.js"></script>
 </body>
 </html>

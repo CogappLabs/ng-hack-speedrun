@@ -26,6 +26,24 @@ input { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid 
   line-height: 1; background: var(--panel); }
 .mute-btn[aria-pressed="true"] { opacity: 0.7; }
 
+/* Credits line, bottom left, and the full-screen credits overlay (js/credits.js, markup in index.html).
+   The line is hidden while driving, when the film strip has the bottom of the screen. */
+.credits-line { position: fixed; left: 10px; bottom: 10px; z-index: 5; margin: 0; padding: 6px 10px;
+  border-radius: 6px; background: var(--panel); font-size: 12px; color: var(--muted); }
+body:has(.filmstrip) .credits-line { display: none; }
+.cc-logo { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin: 0 1px; }
+.credits-open { padding: 0; background: none; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.credits-open:hover { background: none; color: #fff; }
+.credits { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: #000c; }
+.credits[hidden] { display: none; }
+.credits-panel { position: relative; width: min(640px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+  padding: 24px 28px; background: #0d0f14; font-size: 14px; line-height: 1.55; }
+.credits-panel h2 { margin: 0 0 12px; }
+.credits-panel a { color: inherit; }
+.credits-panel a:hover { color: #fff; }
+.credits-close { position: absolute; top: 10px; right: 10px; padding: 4px 9px; }
+
 /* --- Landing (js/screens/landing.js) --- */
 .landing h1 { margin: 0 0 4px; font-size: 32px; }
 .landing .options { margin: 14px 0 4px; display: grid; gap: 8px; }
