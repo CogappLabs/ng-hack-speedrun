@@ -75,7 +75,7 @@ export default {
     ctx = context;
     $ = render(root, `
       <div class="panel centre landing">
-        <h1>Art Drive</h1>
+        <h1>Art Safari</h1>
         <p class="muted">Race across the National Gallery's collection and photograph the paintings that match your challenge.</p>
         <div class="options">
           ${seg('map', 'Map', Object.entries(MAPS).map(([value, m]) => ({ value, label: m.name })))}

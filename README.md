@@ -1,13 +1,13 @@
-# ng-hack-speedrun
+# ng-hack-safari
 Dash to gather artworks. Created for the National Gallery Hack Day November 2026
 
-A web game where you drive a car across a 3D landscape made of National Gallery
+Art Safari is a web game where you drive a car across a 3D landscape made of National Gallery
 artworks, laid flat like floor tiles. Paintings that look similar sit next to each other.
 Each game sets a challenge, such as "photograph 10 examples of hats": you have 10 photos,
 and you score a point for every one that shows the subject. Play on your own or race up to
 9 others: the game ends as soon as anyone fills their film.
 
-Play it at https://cogapplabs.github.io/ng-hack-speedrun/.
+Play it at https://cogapplabs.github.io/ng-hack-safari/.
 
 ## Quick start
 

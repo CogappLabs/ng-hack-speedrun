@@ -1,7 +1,7 @@
 {
-  "name": "ng-hack-speedrun",
+  "name": "ng-hack-safari",
   "private": true,
-  "description": "Multiplayer server for Art Drive (PartyServer on Cloudflare Workers). The game itself (public/) has no build step.",
+  "description": "Multiplayer server for Art Safari (PartyServer on Cloudflare Workers). The game itself (public/) has no build step.",
   "scripts": {
     "party:dev": "wrangler dev",
     "party:deploy": "wrangler deploy",

@@ -1,4 +1,4 @@
-// Cloudflare Worker for Art Drive multiplayer. `npm run party:dev` runs it locally on
+// Cloudflare Worker for Art Safari multiplayer. `npm run party:dev` runs it locally on
 // localhost:8787; `npm run party:deploy` publishes it to <name>.<your-subdomain>.workers.dev.
 {
   "$schema": "node_modules/wrangler/config-schema.json",

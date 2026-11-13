@@ -1,4 +1,4 @@
-# Art Drive: notes for Claude sessions
+# Art Safari: notes for Claude sessions
 
 A browser game: drive a car across National Gallery artworks laid out as floor tiles.
 Static site in `public/`, deployed to GitHub Pages on every push to `main`.

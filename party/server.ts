@@ -1,4 +1,4 @@
-// Multiplayer server for Art Drive, using PartyServer on Cloudflare Workers + Durable Objects.
+// Multiplayer server for Art Safari, using PartyServer on Cloudflare Workers + Durable Objects.
 //
 // - GameRoom: one instance per game room. Keeps the player list, picks the host, and relays
 //   car positions and selections. Clients connect to /parties/game-room/<room id>.
